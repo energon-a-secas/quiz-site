@@ -9,7 +9,7 @@
 import { state, loadAll, savePrefs, persists, recordRound, DEFAULT_LIMIT } from './state.js';
 import { readConfig, resolveHostOrigin, mountEmbedBar, setEmbedTitle, startBridge, emitReady, emitError, emitResize, post } from './embed.js';
 import { isAllowedOrigin } from './origin.js';
-import { loadBuiltinIndex, resolveSet, SetError } from './sets.js';
+import { loadBuiltinIndex, resolveSet, parseFilter, filterItems, filterWords, SetError } from './sets.js';
 import { loadGame, GameLoadError } from './games/index.js';
 import { createRound } from './round.js';
 import { renderLibrary, renderSkeleton, renderError, renderResults, renderAttribution, relabelChrome, refreshLangNote } from './render.js';
@@ -38,6 +38,28 @@ function decideStore(cfg) {
 function clampLimit(n, size) {
   const want = Number.isInteger(n) && n > 0 ? n : DEFAULT_LIMIT;
   return Math.max(1, Math.min(want, size));
+}
+
+/**
+ * The round's items. ?filter= keeps only the items whose one field matches;
+ * the whole set stays behind it as round.pool, so the sound game's row strip
+ * and the distractors still see every cell. A grammar the parser could not
+ * read and a filter that matched nothing are the same thing to a learner
+ * (there is no round to play) and the same code to a host: filter-empty.
+ * @throws {SetError}
+ */
+function filteredItems(set, filter) {
+  if (!filter) return set.items;
+  if (!filter.field || !filter.values.length) {
+    throw new SetError('filter-empty', 'error.filter', { filter: filter.raw },
+      `"${filter.raw}" is not <field>:<value>[,<value>...]`);
+  }
+  const items = filterItems(set.items, filter);
+  if (!items.length) {
+    throw new SetError('filter-empty', 'error.filter', { filter: filter.raw },
+      `no item has ${filter.field} equal to ${filter.values.join(' or ')}`);
+  }
+  return items;
 }
 
 function teardown() {
@@ -79,6 +101,8 @@ function showLibrary() {
   teardown();
   state.view = 'library';
   state.set = null; state.setId = null; state.game = null; state.gameId = null;
+  // The library is never filtered (DESIGN.md 3.3).
+  state.filter = null; state.items = null; state.filterLabel = '';
   renderAttribution(null);
   renderLibrary(root(), { onPlay });
   emitResize();
@@ -132,9 +156,14 @@ function onLeave(summary) {
 function startRound() {
   teardown();
   state.view = 'round';
+  // After teardown, never before: teardown() clears the fallback flag, and a
+  // group name shown in English to a Spanish reader has to be noted on the
+  // screen it appears on for the honesty line to show with it.
+  state.filterLabel = state.filter ? filterWords(state.filter, state.set, state.lang) : '';
   state.round = createRound({
-    set: state.set, setId: state.setId, game: state.game, limit: state.limit, seed: state.seed,
-    lang: state.lang, embed: state.embed, skill: state.skill, root: root(), onEnd: showResults, onLeave,
+    set: state.set, setId: state.setId, items: state.items, game: state.game, limit: state.limit,
+    seed: state.seed, lang: state.lang, embed: state.embed, skill: state.skill,
+    filterLabel: state.filterLabel, root: root(), onEnd: showResults, onLeave,
   });
   emitResize();
 }
@@ -146,14 +175,20 @@ async function startFromConfig(cfg) {
   try {
     const { set, setId, src } = await resolveSet(cfg);
     state.set = set; state.setId = setId; state.setSrc = src;
+    state.filter = parseFilter(cfg.filter);
+    state.items = filteredItems(set, state.filter);
     state.gameId = cfg.game || set.game;
     state.skill = cfg.skill || set.skill || `quiz.${state.gameId}`;
-    state.limit = clampLimit(cfg.limit ?? state.prefs.round, set.items.length);
+    // Capped at the filtered length, so quiz:ready reports the round a learner
+    // will actually see rather than the length of the set behind it.
+    state.limit = clampLimit(cfg.limit ?? state.prefs.round, state.items.length);
     state.seed = cfg.seed || randomSeed();
     state.game = await loadGame(state.gameId);
     registerGameKeys(state.game);
     if (persists()) { state.prefs.lastGame = state.gameId; savePrefs(); }
-    if (cfg.embed) setEmbedTitle(t(set.name, state.lang));
+    if (cfg.embed) {
+      setEmbedTitle(t(set.name, state.lang), state.filter ? filterWords(state.filter, set, state.lang) : '');
+    }
     renderAttribution(set);
     emitReady();
     startRound();
@@ -175,7 +210,7 @@ function bindGlobal() {
   document.addEventListener('quiz:host-start', (e) => {
     if (!state.set || !state.game) return;
     const d = e.detail || {};
-    state.limit = clampLimit(Number.isInteger(d.limit) ? d.limit : (state.cfg?.limit ?? state.prefs.round), state.set.items.length);
+    state.limit = clampLimit(Number.isInteger(d.limit) ? d.limit : (state.cfg?.limit ?? state.prefs.round), (state.items || state.set.items).length);
     state.seed = typeof d.seed === 'string' && d.seed.trim() ? d.seed.trim().slice(0, 64) : randomSeed();
     startRound();
   });

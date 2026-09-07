@@ -2,8 +2,8 @@
 
 > Small games at https://quiz.neorgon.com/: count the beats of a loanword, pick
 > the sound of a kana, match two columns, put a song line back in order. One
-> JSON set per game, every wrong answer explained. Any site can embed a game in
-> an iframe and read the answers back over postMessage. Nothing is uploaded.
+> JSON set per game, every wrong answer explained. Any site can embed a game
+> in an iframe and read the answers back over postMessage. Nothing is uploaded.
 
 ## Writing a set file
 
@@ -15,35 +15,38 @@ Produce ONE JSON object in the `neo-quiz-set/1` format:
       "version": "2026-09-04",
       "game": "beats",
       "name": { "en": "Loanword beats", "es": "Pulsos de préstamos" },
-      "lang": "ja",
       "skill": "jp.mora.count",
       "licence": { "spdx": "CC-BY-4.0", "screen": "required",
                    "attribution": "Word list by ...", "source": "https://..." },
+      "groups": { "greetings": { "en": "Greetings", "es": "Saludos" } },
       "items": [ ... ]
     }
 
 Top-level fields:
 
 - format (required) "neo-quiz-set/1"
-- id (required) starts with a letter or digit, then letters, digits, dot, dash,
+- id (required) a letter or digit, then letters, digits, dot, dash or
   underscore. Scores are keyed by it, so never change it on an existing set
 - version (required) a YYYY-MM-DD date, bumped on any content change
 - game (required) one of beats, sound, pairs, order. A set serves one game
-- name (required) a string or { "en", "es" }. English is the fallback, then
-  Spanish; "es": null means not translated
+- name (required) a string or { "en", "es" }; "es": null means not translated
 - lang (optional) BCP 47 tag of the content, default "ja"
 - skill (optional) a dotted string echoed on every quiz:answer unless the URL
   gives ?skill=. With neither, the skill is "quiz.<game>"
 - licence (required) { spdx (required, an SPDX id or "public-domain"), screen
   (required, "required" or "none"), attribution (the exact on-screen wording,
-  required when screen is "required"), source (URL, optional) }. When screen
-  is "required" the attribution renders under the round on every screen that
-  shows the set, in the embed too, with source linked beside it
+  required when screen is "required"), source (URL, optional) }. With screen
+  "required" the attribution renders under the round on every screen that
+  shows the set, the embed too, source linked beside it
+- groups (optional) { "<id>": name }, name a string or { "en", "es" }: the
+  words the round header shows for filter=group:<id>; an item's group is a key
 - items (required) at least 1, ids unique within the set, id in the same
   character set as the set id. Shapes per game below
 
 No field may contain markup: a "<" followed by a letter anywhere is an error.
 Every learner-facing string is a bilingual value; a bare string is English.
+row, column, group and rule are labels (ASCII letters, digits, dashes) that
+?filter= matches exactly, never prose.
 
 ### beats
 
@@ -53,8 +56,10 @@ Every learner-facing string is a bilingual value; a bare string is English.
                    "es": "La っ pequeña es un pulso propio, una pausa sostenida." } }
 
 - word: the source word, shown under the kana before the answer
-- kana: what is counted, shown large. romaji is shown only after the answer,
-  because "baggu" spells out the count
+- kana: what is counted, shown large. romaji (required, never null) is shown
+  only after the answer, because "baggu" spells out the count. Hepburn in
+  macron style: a long vowel is ā ī ū ē ō (kōhī, gēmu), never oo, ou or a
+  circumflex; ッ doubles the consonant after it; ン is n, n' before a vowel or y
 - beats: an integer from 1 to 9 equal to split.length. The options are four
   ascending numerals around it, so a word past 9 beats needs another game
 - split: the kana cut into beats; joined with "" it must equal kana
@@ -65,25 +70,40 @@ Every learner-facing string is a bilingual value; a bare string is English.
 
     { "id": "ki", "kana": "き", "sound": "ki", "row": "k", "column": "i",
       "distractors": ["ka", "sa", "ni"] }
+    { "id": "kya", "kana": "きゃ", "sound": "kya", "row": "ky", "column": "ya" }
 
 - kana and sound: the two faces. The engine asks in either direction, chosen
-  per item by seed
-- row: a label shared by the kana of one row; column: "a", "i", "u", "e", "o",
-  or null (ん only). The feedback strip is built from the set's items sharing
-  row, ordered a i u e o, so a row works when the set carries all five
+  per item by seed. No two items share a sound
+- row: a label shared by the kana of one row; column: "a", "i", "u", "e", "o"
+  in a plain row, "ya", "yu", "yo" in a yoon row, or null (ん only). A row
+  holds one kind of column and no cell twice. The feedback strip is the set's
+  items sharing row, in column order: five cells for a plain row, three for a
+  yoon row. Ship whole rows; a genuinely short row is not a hole (y has three)
+- a yoon row is labelled by its onset as Hepburn writes it: ky, sh, ch, ny,
+  hy, my, ry, gy, j, by, py. An extended katakana digraph joins its base
+  kana's row when that cell is empty (ヴァ ヴィ ヴェ ヴォ beside ヴ in v), else
+  opens a row named by the base's reading, plain vowel columns: fu (ファ フィ
+  フェ フォ), te (ティ), to (トゥ), de, do, u (ウィ ウェ ウォ), shi (シェ), chi,
+  ji, tsu (ツァ ツィ ツェ ツォ); one with a small ャュョ goes to the yoon row of
+  its onset (dy: デュ). A digraph whose sound a plain kana owns is left out
 - distractors (optional) sounds, 3 or more, drawn from when present; otherwise
   three sounds from the same row or the same column in the set
 
 ### pairs
 
-    { "id": "inu", "left": "いぬ", "right": "dog", "note": "inu" }
+    { "id": "inu", "left": "いぬ", "right": { "en": "dog", "es": "perro" },
+      "note": "inu", "group": "animals" }
 
-- left and right are the only things on the board. Neither may contain the
-  other after trim, casefold and strip-accents, and they may not be equal:
-  that is what keeps the answer off the visible text. note (optional) is shown
-  only in the feedback after a miss
+- left and right are the only things on the board. right is a string or
+  { "en", "es" }: the board shows the reader's language, English when "es" is
+  null, and says so once per screen. In either language right may not contain
+  left, be contained by it or equal it after trim, casefold and strip-accents:
+  that keeps the answer off the visible text. note (optional) is shown only
+  in the feedback after a miss
 - a board is four pairs; the set needs at least 4 items and no two rights may
-  be equal after the same folding
+  be equal after the same folding, per language
+- group (optional) a key of the set's groups, what filter=group: matches. A
+  kana pairs item carries row and column as its sound sibling does
 
 ### order
 
@@ -92,34 +112,44 @@ Every learner-facing string is a bilingual value; a bare string is English.
       "gloss": { "en": "Cherry blossoms, cherry blossoms, over hills and villages",
                  "es": "Flores de cerezo, flores de cerezo, por montes y aldeas" } }
 
-- tokens: the correct order, 3 to 9 pieces (keys 1 to 9 are the bank), no
-  two of them equal: two pieces is a coin flip and two identical pieces have
-  no wrong order. Split a longer line into two items; merge a repeated piece
-  with its neighbour ("よい よい")
+- tokens: the correct order, 3 to 9 pieces (keys 1 to 9 are the bank), no two
+  equal: two pieces is a coin flip, two identical pieces have no wrong order.
+  Split a longer line in two; merge a repeated piece with its neighbour
 - line: the display of the correct line; equals tokens joined with "" or " "
-- gloss: shown after a miss and on the results screen, never before
+- gloss: { "en", "es" }, shown after a miss and on the results screen, never
+  before. "es": null is allowed and puts the fallback line under the surface
 
-### Where a fetched set is stored
+### Generated sets
 
-Scores for a set fetched from ?set= on an origin other than neorgon.com or one
-of its subdomains are keyed `ext:<first 12 hex of SHA-256 of the URL>:<id>`, so
-a third-party document claiming a built-in id cannot merge into it. Built-in
-sets and *.neorgon.com sets keep their plain id. `setId` carries that key.
+The built-in sets are written by runcible-site/tools/build-sets.mjs from the
+corpus, never by hand. Beyond the format it guarantees: a beats romaji is the
+corpus's own line when it has one, else derived from the katakana through the
+kana tables (ー lengthens the vowel before it, ッ doubles the consonant after
+it), macron style either way, never null; a kana the tables cannot read fails
+the build. A digraph's sound is derived the same way. right.es and gloss.es
+are the corpus's Spanish when it has one, else null: the generator translates
+nothing, and the fallback line is how a set says so.
 
 ## URL parameters
 
-    https://quiz.neorgon.com/?game=beats&set=jp-loanwords-beats&limit=10
+    https://quiz.neorgon.com/?game=sound&set=jp-hiragana-sound&filter=row:k&limit=10
 
 - game=beats | sound | pairs | order. Optional when set is given: the set's
   own game is used. An unknown name is quiz:error { code: "game-unknown" };
   a set whose game differs is { code: "game-mismatch" }
-- set=<id> a built-in set from data/sets/index.json, or an https URL fetched over
-  CORS. Plain http://localhost is accepted only when the engine itself is on
-  localhost. Absent in embed: quiz:error { code: "no-set" }. Absent
-  standalone: the library
-- embed=1 strips the chrome to a slim bar with an "Open in Quiz" link that
-  preserves the other parameters except embed and skill, and starts the round
-  on load
+- set=<id> a built-in set from data/sets/index.json, or an https URL fetched
+  over CORS (http://localhost only when the engine itself is on localhost).
+  Absent in embed: quiz:error { code: "no-set" }. Absent standalone: the library
+- filter=<field>:<value>[,<value>...] keeps only the items whose <field>
+  equals one of the values, exactly, after trim: filter=row:k, filter=row:k,s,
+  filter=group:greetings. field is any item field holding a label (row,
+  column, group, rule); a bilingual or numeric field never filters. An unknown
+  field, an empty value list or a match of zero items is quiz:error { code:
+  "filter-empty" }. limit is capped at the filtered length, the round header
+  names the filter in words (the k row, the k and s rows, Greetings), "Open in
+  Quiz" keeps it. Only the first filter= is read: one per round
+- embed=1 strips the chrome to a slim bar whose "Open in Quiz" link keeps every
+  other parameter (filter included) except embed and skill; the round starts on load
 - limit=<N> items per round, default 10, capped at the set's length. A value
   that is not a finite positive integer is discarded
 - seed=<string> makes the shuffle, the numeral window and the sound direction
@@ -128,9 +158,7 @@ sets and *.neorgon.com sets keep their plain id. `setId` carries that key.
 - skill=<dotted> overrides the set's skill on every quiz:answer
 - theme=<name> is read by the fleet's pre-paint theme script, as on every site
 
-## Embedding (iframe)
-
-Contract version `neo-quiz-embed/1`.
+## Embedding (iframe), contract `neo-quiz-embed/1`
 
     <iframe src="https://quiz.neorgon.com/?embed=1&game=beats&limit=10&set=https%3A%2F%2Fexample.com%2Fbeats.json"
       width="100%" height="560" loading="lazy" style="border:0"
@@ -138,57 +166,50 @@ Contract version `neo-quiz-embed/1`.
 
 ### Messages the engine sends you
 
-Every message is `{ v: 1, type, ... }` and is posted to your origin (the
-referrer's origin), never `*`. With no referrer the engine posts nothing.
-**Ignore any message whose `v` you do not recognise.** chosen and expected are
-always strings.
+Every message is `{ v: 1, type, ... }`, posted to your origin (the referrer's),
+never `*`; with no referrer the engine posts nothing. **Ignore any message
+whose `v` you do not recognise.** chosen and expected are always strings.
 
 - quiz:ready `{ setId, setVersion, game, name, total, store }`. total is the
-  round length after limit. store is "engine" when this frame writes
-  quiz:scores:v1 and "ephemeral" when it does not (see the allowlist). Fires
-  once the set resolved, and again every time you send quiz:hello
+  round length after filter and limit; store is "engine" when this frame
+  writes quiz:scores:v1, else "ephemeral" (see the allowlist). Fires once the
+  set resolved, and again every time you send quiz:hello
 - quiz:answer `{ setId, game, itemId, skill, correct, ms, chosen, expected }`,
-  one per item. In pairs one per pair, decided by the first attempt on that
-  left item; later taps that resolve it record nothing. ms is from the item's
-  first paint (in pairs, from the previous lock) to the commit
+  one per item; in pairs one per pair, decided by the first attempt on that
+  left item. ms runs from the item's first paint (in pairs, the previous
+  lock) to the commit
 - quiz:session-end `{ setId, game, answered, correct, wrong, ms, medianMs,
-  bestStreak, total, complete }`. Fires once per round, when the results
-  screen renders. total is the round length; complete is false when the
-  learner left the round early (embed only: Leave shows a partial results
-  screen and records no score), so a host that marks an exercise finished
-  should check it, or answered against total, before doing so
+  bestStreak, total, complete }`, once per round, as the results screen
+  renders. complete is false when the learner left early (embed only: Leave
+  shows partial results and records no score); a host marking an exercise
+  finished checks it first
 - quiz:error `{ code, message }`. Codes: no-set, set-fetch-failed,
-  set-invalid, game-unknown, game-mismatch. The frame shows its own message
-  either way; this lets you fall back
+  set-invalid, game-unknown, game-mismatch, filter-empty. The frame shows its
+  own message either way; this lets you fall back
 - quiz:resize `{ height }`, debounced 120ms. Clamp it; the frame does not
 
 **If you stop receiving quiz:answer, nothing looks broken.** The frame keeps
-showing a working game and you quietly stop recording. That is why every
-message carries a version and why silence after quiz:ready is a fault.
+showing a working game and you quietly stop recording: that is why every
+message carries a version, and why silence after quiz:ready is a fault.
 
 ### Messages you can send the engine
 
 Every inbound message must carry `v: 1` and a `type` starting with `quiz:`;
-anything else is dropped without a reply. All three are accepted from any
-origin: they are read-only or round-scoped.
+anything else is dropped. All three are accepted from any origin: they are
+read-only or round-scoped.
 
 - quiz:hello `{ v: 1 }`. The engine re-emits quiz:ready. **Send this on the
   iframe's load event**: the engine can be ready before your listener exists
 - quiz:start `{ limit?, seed? }`. Starts or restarts a round
-- quiz:theme `{ theme }`. Up to 32 letters, digits, `_` or `-`, applied to
-  documentElement.dataset.theme
+- quiz:theme `{ theme }`, up to 32 letters, digits, `_` or `-`, applied to documentElement.dataset.theme
 
     const QUIZ = 'https://quiz.neorgon.com';
     window.addEventListener('message', (e) => {
       if (e.origin !== QUIZ || e.source !== frame.contentWindow) return;
-      const m = e.data;
-      if (!m || m.v !== 1) return;
-      if (m.type === 'quiz:ready')  { if (m.store === 'ephemeral') warnNotSaved(); }
-      if (m.type === 'quiz:answer') { record(m.itemId, m.skill, m.correct, m.ms); }
+      const m = e.data; if (!m || m.v !== 1) return;
+      if (m.type === 'quiz:answer') record(m.itemId, m.skill, m.correct, m.ms);
     });
-    frame.addEventListener('load', () => {
-      frame.contentWindow.postMessage({ v: 1, type: 'quiz:hello' }, QUIZ);
-    });
+    frame.addEventListener('load', () => frame.contentWindow.postMessage({ v: 1, type: 'quiz:hello' }, QUIZ));
 
 ### The origin allowlist, and the one invariant
 
@@ -199,98 +220,92 @@ referrer's origin and asks
     allowed(origin, self) =
          origin === "https://neorgon.com"
       || origin ends with ".neorgon.com" over https      // label boundary, not substring
-      || (self is http://localhost:* or http://127.0.0.1:*
-          and origin is http://localhost:* or http://127.0.0.1:*)
+      || (self and origin are both http://localhost:* or http://127.0.0.1:*)
 
 An allowed host gets store "engine": the round is written to quiz:scores:v1
 on quiz.neorgon.com, so a game played inside runcible.neorgon.com shows up in
-the library's last score (a same-site guarantee only: browsers partition
-third-party storage by top-level site, and Safari may partition even this
-case). Any other host, or no referrer, gets store "ephemeral": nothing is
-written, and the "Open in Quiz" link is the path that always persists.
+the library's last score (same-site only: browsers partition third-party
+storage by top-level site, Safari may partition even this). Any other host,
+or no referrer, gets "ephemeral": nothing is written, and "Open in Quiz" is
+the path that always persists.
 
 **The invariant, stated once: an unlisted origin can never cause a write to
 quiz.neorgon.com's persistent storage.** The localhost clause is gated on the
-engine itself being local, so it is dead code in production; it exists so
+engine itself being local, dead code in production; it exists so that
 http://localhost:8878 (Runcible) can embed http://localhost:8880 (Quiz) for
 real. It is a pure function, `isAllowedOrigin(origin, selfOrigin)` in
-js/origin.js, copied from rappel-site with the label-boundary check, and
-tools/test-origin.mjs must cover at least Rappel's cases: runcible.neorgon.com
-and neorgon.com over https allowed; evil-neorgon.com (the suffix bug),
-neorgon.com.evil.io, xneorgon.com, a trailing-dot host, the apex over http,
-"null", "", a URL with a path, query or credentials, file:, data:, javascript:,
-undefined and a non-string refused; http://localhost:8878 allowed only when
-self is http://localhost:8880, and https://localhost, localhost.evil.io and a
-LAN address refused even then. The same file carries isAllowedSetSrc (https, or
-localhost when the engine is local) and namespacedSetId (the ext: rule).
+js/origin.js, from rappel-site with the label-boundary check, and
+tools/test-origin.mjs covers Rappel's cases: lookalikes (evil-neorgon.com,
+neorgon.com.evil.io, xneorgon.com, a trailing dot), the apex over http, "null",
+"", a URL with a path, query or credentials, file:, data:, javascript:,
+undefined and a non-string all refused; localhost:8878 allowed only when self
+is localhost:8880, never https://localhost, localhost.evil.io or a LAN address.
+The same file carries isAllowedSetSrc and namespacedSetId (the ext: rule).
 
 ## The game module interface
 
-Every game is one ES module in js/games/<id>.js, under 500 lines, and exports
+Every game is one ES module in js/games/<id>.js, under 500 lines, exporting
+`{ id, name, describe, keys, mount(host, round, api) }`; mount returns `{ destroy() }`.
 
-    export default {
-      id: 'beats',
-      name: { en: 'Beats', es: 'Pulsos' },
-      describe: { en: 'How many beats does this word have?', es: '...' },
-      keys: [],
-      mount(host, round, api) { /* render one item */ return { destroy() {} }; }
-    }
-
-- id equals the file name and the set's game; name and describe are what the
-  library and the round header show
-- keys lists the keys the module binds beyond the digits (order: ["Backspace"]).
-  They appear in the ? sheet and are refused if reserved (?, h, g). The module
-  adds its own listener and removes it in destroy(); digits are the engine's
+- id equals the file name and the set's game; name and describe, bilingual,
+  are what the library and the round header show
+- keys lists the keys the module binds beyond the digits (order: ["Backspace"]),
+  listed in the ? sheet, refused if reserved (?, h, g). The module adds its
+  own listener and removes it in destroy(); digits are the engine's
 - mount is called once per item with host emptied. round is
-  { items, index, lang, embed }: items is the shuffled round, index the first
-  item not yet answered, lang "en" or "es", embed a boolean. A module may
-  consume more than one item per mount (pairs takes four from index)
-- api is { answer, next, say, t }:
-  - answer({ itemId, correct, ms, chosen, expected, why? }) records one
-    verdict and posts quiz:answer. why is { text, node? }: text is the one
-    sentence the results screen and the live region read, node the rich
-    explanation the feedback panel shows (tiles, the row strip, the marked
-    line). A wrong answer without why is a defect the engine logs
-  - next() says the mount is done. The engine then shows the panel for every
-    wrong answer since this mount and advances on Continue, or advances after
-    600ms when there were none. Modules never advance themselves
-  - say(text) writes to the polite live region
-  - t(obj, vars?) resolves a bilingual value by round.lang with English
-    fallback and fills {name} placeholders
+  { items, index, lang, embed, pool }: items the shuffled, filtered round,
+  index the first item not yet answered, lang "en" or "es", embed a boolean,
+  pool every item of the set (the row strip and the distractors draw from it,
+  so a filter on one row still shows the whole row). pairs takes four from index
+- api is { answer, next, say, t }: answer({ itemId, correct, ms, chosen,
+  expected, why? }) records one verdict and posts quiz:answer, why being
+  { text, node? }, text the one sentence the results screen and live region
+  read, node the rich explanation the panel shows (tiles, the row strip, the
+  marked line); a wrong answer without why is a defect the engine logs.
+  next() says the mount is done: the engine shows the panel for every wrong
+  answer since this mount and advances on Continue, or after 600ms when there
+  were none; modules never advance themselves. say(text) writes to the polite
+  live region. t(obj, vars?) resolves a bilingual value by round.lang with
+  English fallback and fills {name} placeholders
 - options are <button type="button" data-key="N">: the engine binds digits 1
-  to 9 and clicks the matching data-key. The shared keycap(n) from js/ui.js
-  renders the box beside it; the digit is never in the button's text. beats
-  renders no keycaps and gives each numeral tile data-key of its own value
+  to 9 and clicks the matching data-key; keycap(n) from js/ui.js renders the
+  box beside it, the digit never in the button's text. beats renders no
+  keycaps: each numeral tile's data-key is its own value
 
 ## Storage
 
 - quiz:prefs:v1 `{ v: 1, lang: "en" | "es", round: 5 | 10 | 20, lastGame: <game> | null }`
 - quiz:scores:v1 `{ v: 1, rounds: { "<game>/<setId>": { played, last: { correct,
-  total, at }, best: { correct, total }, bestStreak } } }`, at in ms
-- neither is written in an ephemeral frame; both are read defensively and a
+  total, at }, best: { correct, total }, bestStreak } } }`, at in ms. A
+  filtered round is keyed like the whole set: a filter is not a second score
+- a set fetched from an origin other than neorgon.com or a subdomain is keyed
+  `ext:<first 12 hex of SHA-256 of the URL>:<id>`, so a third-party document
+  claiming a built-in id cannot merge into it; `setId` carries that key
+- neither is written in an ephemeral frame; both are read defensively, and a
   document with another v is ignored, not migrated
 
 ## Runcible: the quiz exercise
 
-    { "id": "e-beats", "type": "quiz", "game": "beats", "skill": "jp.mora.count",
-      "src": "books/japanese/sets/jp-loanwords-beats.json", "limit": 10,
-      "title": { "en": "Count the beats" } }
+    { "id": "e-sound-k", "type": "quiz", "game": "sound", "skill": "jp.kana.hiragana.sound",
+      "src": "books/japanese/sets/jp-hiragana-sound.json", "limit": 10,
+      "filter": "row:k", "title": { "en": "The k row" } }
 
 - type "quiz" with game (required, one of the four), src (required), skill
-  (required), limit (optional positive integer)
-- src is a neo-quiz-set/1 document on Runcible's origin and MUST be declared in
-  the Book's data[]; an undeclared src is a load error naming book.json, the
-  same rule as a deck
+  (required), limit (optional positive integer), filter (optional, the URL
+  grammar, one field; validate-book checks the grammar and that src carries a
+  matching item, so filter-empty is a build error, never a learner's screen)
+- src is a neo-quiz-set/1 document on Runcible's origin and MUST be declared
+  in the Book's data[]; an undeclared src is a load error, the deck's rule
 - skill is what the host records: every quiz:answer becomes one attempt
-  { itemId, skill: spec.skill, correct, ms, answer: chosen, expected } with
-  source "quiz". The engine's skill is informational. The skill rule for decks
-  applies unchanged: a skill nothing in the Book reads is an error
-- the host builds ?embed=1&game=&set=<absolute src>&skill=&lang=&limit= at
-  the engine origin (https://quiz.neorgon.com, or http://localhost:8880 when
-  the host is on localhost), sends quiz:hello on load, filters on e.origin and
+  { itemId, skill: spec.skill, correct, ms, answer: chosen, expected }, source
+  "quiz". The engine's skill is informational. The deck rule applies
+  unchanged: a skill nothing in the Book reads is an error
+- the host builds ?embed=1&game=&set=<absolute src>&skill=&lang=&limit=&filter=
+  at the engine origin (https://quiz.neorgon.com, or http://localhost:8880 when
+  the host is local), sends quiz:hello on load, filters on e.origin and
   e.source, drops unknown v, converts session-end into api.done, shouts a
   malformed answer on the page, times eight seconds of silence, and renders an
-  "Open in Quiz" link beside the exercise whether or not the frame loaded
+  "Open in Quiz" link beside the exercise, filter kept, frame loaded or not
 
 ## Keyboard
 

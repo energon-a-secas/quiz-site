@@ -49,6 +49,11 @@ export function numeralWindow(beats, rand) {
  * count sentence is not drawn in the panel, the tiles already say it; it is
  * kept as text for the results screen and the live region, so an item with
  * "explain": null still explains itself in words there.
+ *
+ * The romaji is required and never null (llms.txt), and it is printed exactly
+ * as the set carries it: in macron style a long vowel is one letter with a
+ * bar (kōhī), and each bar is one of the tiles above it. Spelling it back out
+ * as koohii, or dropping the bar, would contradict the count just drawn.
  */
 export function buildWhy(item, api) {
   const tiles = el('div', { class: 'qz-beats', role: 'list' }, item.split.map((piece, i) => {
@@ -66,7 +71,7 @@ export function buildWhy(item, api) {
     text,
     node: why([
       tiles,
-      item.romaji ? el('p', { class: 'qz-why__romaji', text: item.romaji }) : null,
+      el('p', { class: 'qz-why__romaji', text: item.romaji || '' }),
       item.explain ? whyLine(api.t(item.explain), 'qz-why__line--rule') : null,
     ]),
   };

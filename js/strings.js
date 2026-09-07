@@ -35,6 +35,15 @@ export const STRINGS = {
   'feedback.order': { en: '{token} goes here, not {chosen}', es: '{token} va aquí, no {chosen}' },
   progress: { en: '{n} of {total}', es: '{n} de {total}' },
   'streak.count': { en: '{n} in a row', es: '{n} seguidas' },
+  // A filtered round names its filter in words beside the game name, and in
+  // the embed bar. row.<label> is the one place a row label becomes prose;
+  // every row without an entry prints as the set writes it (k, ky, fu).
+  'filter.row': { en: 'the {row} row', es: 'la fila {row}' },
+  'filter.rows': { en: 'the {list} rows', es: 'las filas {list}' },
+  'filter.and': { en: 'and', es: 'y' },
+  'filter.other': { en: '{field}: {list}', es: '{field}: {list}' },
+  'row.vowels': { en: 'vowel', es: 'de las vocales' },
+  'row.moraic-n': { en: 'ん', es: 'ん' },
   'results.title': { en: 'Round over', es: 'Ronda terminada' },
   'results.perfect': { en: 'Perfect round', es: 'Ronda perfecta' },
   'results.partial': { en: 'Round left at {n} of {total}', es: 'Ronda interrumpida en {n} de {total}' },
@@ -79,6 +88,7 @@ export const STRINGS = {
   'error.invalid': { en: 'This is not a valid neo-quiz-set/1 document: {reason}', es: 'No es un documento neo-quiz-set/1 válido: {reason}' },
   'error.game': { en: 'There is no game called {game}.', es: 'No existe un juego llamado {game}.' },
   'error.mismatch': { en: 'This set is for {setGame}, not {game}.', es: 'Este conjunto es para {setGame}, no para {game}.' },
+  'error.filter': { en: 'Nothing in this set matches {filter}. Check the field and its values.', es: 'Nada en este conjunto coincide con {filter}. Revisa el campo y sus valores.' },
   'error.module': { en: '{path} did not load: {reason}', es: '{path} no se cargó: {reason}' },
   'error.library': { en: 'Back to the library', es: 'Volver a la biblioteca' },
   'error.boot': { en: 'Quiz could not start. Reload the page; the browser console names what blocked it. Nothing was written.', es: 'Quiz no pudo iniciarse. Recarga la página; la consola del navegador indica qué lo bloqueó. No se escribió nada.' },
@@ -131,6 +141,18 @@ export function t(value, lang = 'en', vars) {
 /** Substitute {name} placeholders. Values are not escaped; the DOM builder does that. */
 export function fill(text, vars = {}) {
   return String(text).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+/**
+ * A row label as words. DESIGN.md 3.3: wherever {row} prints, a label with a
+ * row.<label> entry is replaced (vowels, moraic-n) and every other row prints
+ * as the set writes it (k, ky, fu). One implementation, read by the round
+ * header (through js/sets.js) and by the sound game's why line, so the two
+ * cannot drift.
+ */
+export function rowWord(row, lang = 'en') {
+  const key = `row.${row}`;
+  return key in STRINGS ? t(STRINGS[key], lang) : String(row ?? '');
 }
 
 /** A string from the table, by key. An unknown key returns the key and warns once. */

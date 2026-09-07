@@ -1,8 +1,15 @@
 // pairs: a board of up to four pairs, left column in set order, right column
 // shuffled by seed. Tap a left item, then a right one. Nothing but left and
-// right is on the board: no romaji, no gloss, no note, so the answer is never
-// in the prompt (the set format refuses a pair where either side contains the
-// other; the note is shown only after a miss).
+// right is on the board: no romaji, no gloss, no note, and none of the labels
+// a kana item carries for ?filter= (row, column, group), so the answer is
+// never in the prompt (the set format refuses a pair where either side
+// contains the other; the note is shown only after a miss).
+//
+// right is a bilingual value: the board prints the reader's language, English
+// when "es" is null, and the honesty line under the surface says so once. A
+// bare string is English and is not a fallback, which is why a romaji right
+// ("inu") never trips that line. The format holds rights apart per language,
+// and that is what lets a lock be decided by comparing the printed strings.
 //
 // Each left item is decided by its first attempt. A mismatch marks the left
 // item for one attempt and the learner keeps going; later taps that resolve
@@ -44,13 +51,18 @@ export function shuffledRights(rights, rand) {
   return out;
 }
 
-/** Both faces resolved to this round's language: a face may be a bilingual value. */
+/**
+ * Both faces resolved to this round's language. Resolving is what records a
+ * fallback, so the board's own t() calls are what raise the honesty line: a
+ * face nobody prints never raises it.
+ */
 export function facesOf(item, api) {
   return { left: api.t(item.left), right: api.t(item.right) };
 }
 
-export function buildWhy(item, api) {
-  const { left, right } = facesOf(item, api);
+/** The pair as the board printed it, so the panel repeats it word for word. */
+export function buildWhy(item, api, face = null) {
+  const { left, right } = face || facesOf(item, api);
   const text = api.t(S.feedbackPairs, { left, right });
   return {
     text,
@@ -157,7 +169,7 @@ export default {
           ms: timer.read(),
           chosen: String(text),
           expected: String(face.right),
-          why: correct ? undefined : buildWhy(item, api),
+          why: correct ? undefined : buildWhy(item, api, face),
         });
         announce(api, round, { correct, n: round.index + attempted.size, expected: face.right });
       }

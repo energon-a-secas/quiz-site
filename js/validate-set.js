@@ -11,6 +11,10 @@
 
 export const GAMES = ['beats', 'sound', 'pairs', 'order'];
 export const COLUMNS = ['a', 'i', 'u', 'e', 'o'];
+/** A yoon row is three cells wide: きゃ きゅ きょ, not five. */
+export const YOON_COLUMNS = ['ya', 'yu', 'yo'];
+/** The item fields ?filter= matches, so each one holds a label and not prose. */
+export const LABEL_FIELDS = ['row', 'column', 'group', 'rule'];
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,6 +23,10 @@ const LANG_RE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const SKILL_RE = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/;
 /** "a < followed by a letter anywhere is an error" */
 const MARKUP_RE = /<[A-Za-z]/;
+/** "row, column, group and rule are labels (ASCII letters, digits, dashes)" */
+const LABEL_RE = /^[A-Za-z0-9-]+$/;
+
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
 /** trim, casefold and strip accents: the folding the pairs rule is stated in. */
 export function fold(text) {
@@ -28,6 +36,34 @@ export function fold(text) {
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v) => typeof v === 'string' && v.trim().length > 0;
+
+/**
+ * A bilingual value as each reader would be shown it: the language's own
+ * string, English when it has none. The pairs rules are stated per language
+ * ("In either language right may not contain left"), so they are checked on
+ * what a board would actually print, not on the union of both languages: a
+ * right of { en: "dog", es: "perro" } must not collide with an unrelated
+ * item's Spanish just because one of its strings reads like it.
+ */
+function faces(value) {
+  if (typeof value === 'string') return { en: value, es: value };
+  if (!isObj(value)) return { en: '', es: '' };
+  const en = typeof value.en === 'string' ? value.en : (typeof value.es === 'string' ? value.es : '');
+  const es = typeof value.es === 'string' ? value.es : en;
+  return { en, es };
+}
+
+/** Every filterable field holds a label. A label with a space in it is prose. */
+function checkLabels(it, p, errors) {
+  for (const k of LABEL_FIELDS) {
+    if (!has(it, k)) continue;
+    const v = it[k];
+    if (v === null || v === undefined) continue;
+    if (typeof v !== 'string' || !LABEL_RE.test(v)) {
+      errors.push({ path: `${p}.${k}`, message: 'must be a label (ASCII letters, digits and dashes) that ?filter= matches exactly, never prose' });
+    }
+  }
+}
 
 /**
  * A learner-facing value: a bare string is English, an object carries en and
@@ -94,8 +130,8 @@ const itemCheck = {
     ['kana', 'sound', 'row'].forEach((k) => { if (!isStr(it[k])) errors.push({ path: `${p}.${k}`, message: 'is required' }); });
     if (it.column === null) {
       if (it.sound !== 'n') errors.push({ path: `${p}.column`, message: 'may be null for the moraic n only' });
-    } else if (!COLUMNS.includes(it.column)) {
-      errors.push({ path: `${p}.column`, message: `must be one of ${COLUMNS.join(', ')}, or null for the moraic n` });
+    } else if (!COLUMNS.includes(it.column) && !YOON_COLUMNS.includes(it.column)) {
+      errors.push({ path: `${p}.column`, message: `must be one of ${COLUMNS.join(', ')} in a plain row, ${YOON_COLUMNS.join(', ')} in a yoon row, or null for the moraic n` });
     }
     const d = it.distractors;
     if (d !== undefined) {
@@ -107,18 +143,18 @@ const itemCheck = {
     }
   },
   pairs(it, p, errors) {
-    const lefts = bilingual(it.left, `${p}.left`, errors);
-    const rights = bilingual(it.right, `${p}.right`, errors);
+    bilingual(it.left, `${p}.left`, errors);
+    bilingual(it.right, `${p}.right`, errors);
     if (it.note !== undefined && it.note !== null) bilingual(it.note, `${p}.note`, errors);
-    for (const l of lefts) {
-      for (const r of rights) {
-        const fl = fold(l);
-        const fr = fold(r);
-        if (fl === fr) errors.push({ path: `${p}.right`, message: 'equals left after folding' });
-        else if (fl.includes(fr) || fr.includes(fl)) errors.push({ path: `${p}.right`, message: 'one side contains the other after folding, which puts the answer on the board' });
-      }
+    const left = faces(it.left);
+    const right = faces(it.right);
+    for (const lang of ['en', 'es']) {
+      const fl = fold(left[lang]);
+      const fr = fold(right[lang]);
+      if (!fl || !fr) continue;
+      if (fl === fr) errors.push({ path: `${p}.right`, message: `equals left after folding, in ${lang}` });
+      else if (fl.includes(fr) || fr.includes(fl)) errors.push({ path: `${p}.right`, message: `one side contains the other after folding, in ${lang}, which puts the answer on the board` });
     }
-    return rights;
   },
   order(it, p, errors) {
     const t = it.tokens;
@@ -133,10 +169,34 @@ const itemCheck = {
   },
 };
 
+/**
+ * A row holds one kind of column and no cell twice: five plain cells, or
+ * three yoon ones. A row that mixes them is two rows wearing one label, and
+ * the strip would read as a chart row that does not exist.
+ */
+function checkRows(items, errors) {
+  const rows = new Map();
+  items.forEach((it, i) => {
+    if (!isStr(it.row)) return;
+    const cell = it.column === null || it.column === undefined ? 'none' : String(it.column);
+    const kind = cell === 'none' ? 'none' : (YOON_COLUMNS.includes(cell) ? 'yoon' : 'plain');
+    const row = rows.get(it.row) || { kind: null, cells: new Map() };
+    if (row.kind && row.kind !== kind) {
+      errors.push({ path: `items[${i}].column`, message: `the ${it.row} row already holds ${row.kind} columns; a row holds one kind` });
+    } else if (!row.kind) {
+      row.kind = kind;
+    }
+    if (row.cells.has(cell)) errors.push({ path: `items[${i}].column`, message: `the ${it.row} row already has its ${cell} cell, items[${row.cells.get(cell)}]` });
+    else row.cells.set(cell, i);
+    rows.set(it.row, row);
+  });
+}
+
 /** Cross-item rules: unique kana and sounds, distractors the set can show, unique rights, a full board. */
 function checkSetWide(doc, errors) {
   const items = doc.items.filter(isObj);
   if (doc.game === 'sound') {
+    checkRows(items, errors);
     const kana = new Map();
     const sounds = new Map();
     items.forEach((it, i) => {
@@ -151,13 +211,17 @@ function checkSetWide(doc, errors) {
   }
   if (doc.game === 'pairs') {
     if (items.length < 4) errors.push({ path: 'items', message: `has ${items.length}; a board is four pairs, so a set needs at least 4` });
-    const rights = new Map();
+    // Per language: the board prints one of the two faces, and it is that
+    // face a learner has to tell apart from the other three.
+    const rights = { en: new Map(), es: new Map() };
     items.forEach((it, i) => {
-      bilingual(it.right, '', []).forEach((r) => {
-        const fr = fold(r);
-        if (rights.has(fr)) errors.push({ path: `items[${i}].right`, message: `"${r}" equals the right of items[${rights.get(fr)}] after folding` });
-        else rights.set(fr, i);
-      });
+      const f = faces(it.right);
+      for (const lang of ['en', 'es']) {
+        const fr = fold(f[lang]);
+        if (!fr) continue;
+        if (rights[lang].has(fr)) errors.push({ path: `items[${i}].right`, message: `"${f[lang]}" equals the ${lang} right of items[${rights[lang].get(fr)}] after folding` });
+        else rights[lang].set(fr, i);
+      }
     });
   }
 }
@@ -175,6 +239,15 @@ export function validateSet(doc) {
   if (!GAMES.includes(doc.game)) errors.push({ path: 'game', message: `must be one of ${GAMES.join(', ')}` });
   bilingual(doc.name, 'name', errors);
   if (doc.lang !== undefined && (!isStr(doc.lang) || !LANG_RE.test(doc.lang))) errors.push({ path: 'lang', message: 'must be a BCP 47 tag' });
+  if (doc.groups !== undefined && doc.groups !== null) {
+    if (!isObj(doc.groups)) errors.push({ path: 'groups', message: 'must be an object of "<id>": name' });
+    else {
+      Object.entries(doc.groups).forEach(([id, name]) => {
+        if (!LABEL_RE.test(id)) errors.push({ path: `groups.${id}`, message: 'a group id is a label (ASCII letters, digits and dashes): filter=group: matches it exactly' });
+        bilingual(name, `groups.${id}`, errors);
+      });
+    }
+  }
   if (doc.skill !== undefined && (!isStr(doc.skill) || !SKILL_RE.test(doc.skill))) errors.push({ path: 'skill', message: 'must be a dotted string' });
   checkLicence(doc.licence, errors);
   findMarkup(doc, '', errors);
@@ -191,6 +264,13 @@ export function validateSet(doc) {
     if (!isStr(it.id) || !ID_RE.test(it.id)) errors.push({ path: `${p}.id`, message: 'must be in the same character set as the set id' });
     else if (ids.has(it.id)) errors.push({ path: `${p}.id`, message: `duplicates ${it.id}; scores are keyed by it` });
     else ids.add(it.id);
+    checkLabels(it, p, errors);
+    // A group the set never declared has no words for the round header, so it
+    // is a typo rather than a group. A set with no groups block filters all
+    // the same; only a declared block makes the key a closed list.
+    if (isObj(doc.groups) && isStr(it.group) && !has(doc.groups, it.group)) {
+      errors.push({ path: `${p}.group`, message: `"${it.group}" is not a key of groups` });
+    }
     if (check) check(it, p, errors);
   });
   if (check) checkSetWide(doc, errors);

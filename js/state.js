@@ -37,6 +37,10 @@ export const state = {
   set: null,
   setId: null,
   setSrc: null,
+  /** ?filter= parsed, the items it kept, and the words for the header */
+  filter: null,
+  items: null,
+  filterLabel: '',
   /** the loaded game module and its id */
   game: null,
   gameId: null,

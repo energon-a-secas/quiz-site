@@ -16,24 +16,29 @@ import {
  * @param {object} o
  * @param {object} o.set        the validated set document
  * @param {string} o.setId      its scoring id (namespaced when fetched)
+ * @param {object[]} [o.items]  the items ?filter= kept; the whole set by default
  * @param {object} o.game       the loaded game module
  * @param {number} o.limit      items per round, already clamped
  * @param {string} o.seed
  * @param {'en'|'es'} o.lang
  * @param {boolean} o.embed
  * @param {string} o.skill
+ * @param {string} [o.filterLabel] the filter in words, beside the game name
  * @param {HTMLElement} o.root  the surface, emptied here
  * @param {(summary: object) => void} o.onEnd
  * @param {(summary: object) => void} o.onLeave
  */
 export function createRound(o) {
-  const { set, setId, game, limit, seed, lang, embed, skill, root, onEnd, onLeave } = o;
+  const { set, setId, game, limit, seed, lang, embed, skill, filterLabel = '', root, onEnd, onLeave } = o;
   const random = rng(seed);
-  const items = shuffle(set.items, random).slice(0, limit);
+  // The round is shuffled out of what ?filter= kept; the pool behind it is
+  // every item of the set, for the distractors and the sound game's row strip,
+  // which neither a round of ten nor a round on one row can supply on its own.
+  const pool = set.items;
+  const source = Array.isArray(o.items) && o.items.length ? o.items : pool;
+  const items = shuffle(source, random).slice(0, limit);
   const total = items.length;
-  // items is the round; pool is every item of the set, for distractors and
-  // the sound game's row strip, which a round of ten cannot supply on its own.
-  const round = { items, index: 0, lang, embed, seed, rng: random, pool: set.items, set };
+  const round = { items, index: 0, lang, embed, seed, rng: random, pool, set };
   const results = [];
   let cursor = 0;
   let sinceMount = [];
@@ -48,7 +53,12 @@ export function createRound(o) {
 
   const gameName = t(game.name, lang);
   const head = h('header', { class: 'q-round-head' }, [
-    h('span', { class: 'q-round-head__game', text: gameName }),
+    h('span', { class: 'q-round-head__game' }, [
+      gameName,
+      // A filtered round says so where the game is named, and nowhere else:
+      // the options, the feedback and the score key are the set's own.
+      filterLabel ? h('span', { class: 'q-round-head__filter', text: ` · ${filterLabel}` }) : null,
+    ]),
     h('span', { class: 'q-round-head__progress' }),
     h('span', { class: 'q-round-head__streak' }),
   ]);

@@ -121,6 +121,9 @@ body.is-embed .q-surface { padding: var(--space-4); }
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-3);
   font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
 }
+.q-round-head__game { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A filtered round names its filter beside the game, one step quieter. */
+.q-round-head__filter { color: var(--text-muted); }
 .q-round-head__progress { font-variant-numeric: tabular-nums; }
 .q-round-head__streak { display: flex; justify-content: flex-end; min-height: 20px; }
 .q-streak { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--accent-bright); font-variant-numeric: tabular-nums; }

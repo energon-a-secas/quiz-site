@@ -2,24 +2,35 @@
 // and the learner picks the kana. The direction is chosen per item by seed.
 //
 // The why is one row of the kana chart, built from the items sharing the
-// target's row, in column order a i u e o. The cells light left to right
-// and the target stays lit, so a miss is placed on the chart rather than
-// just corrected.
+// target's row, in column order a i u e o, or ya yu yo when the row is a
+// yoon row. The cells light left to right and the target stays lit, so a miss
+// is placed on the chart rather than just corrected.
 
 import {
   S, el, uid, addStyle, itemRng, clock, shuffle, prompt, optionsGroup, option,
   markCorrect, markWrong, markExpected, settle, announce, why, whyLine, gameRoot,
 } from './shared.js';
+import { rowWord } from '../strings.js';
 
-const COLUMNS = ['a', 'i', 'u', 'e', 'o'];
+/**
+ * The order a strip reads in. A row holds one kind of column (llms.txt), so
+ * one list orders both kinds: a plain row sorts inside a i u e o, a yoon row
+ * (ky, sh, ch, j, ...) inside ya yu yo. An extended row is a plain row with
+ * cells missing (fu: ファ フィ フェ フォ, so a i e o), and a missing cell is
+ * simply not drawn rather than left as a hole.
+ */
+const COLUMNS = ['a', 'i', 'u', 'e', 'o', 'ya', 'yu', 'yo'];
 
 const STYLE = `
 .qz-strip { display: flex; align-items: flex-start; gap: var(--space-2); }
-.qz-strip__row { width: 28px; height: 44px; display: grid; place-items: center;
-  font-size: var(--text-sm); font-weight: 500; color: var(--text-muted); }
+/* The label is the row as the set writes it, so it sizes to the label rather
+   than the label to it: k is one character, ky and fu two, vowels six. */
+.qz-strip__row { min-width: 28px; height: 44px; display: grid; place-items: center; padding: 0 var(--space-1);
+  font-size: var(--text-sm); font-weight: 500; color: var(--text-muted); white-space: nowrap; }
 .qz-strip__cells { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .qz-cell { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
-.qz-cell__kana { width: 44px; height: 44px; display: grid; place-items: center; font-size: var(--text-xl);
+/* A digraph is two kana in one cell, so the square is a floor, not a cap. */
+.qz-cell__kana { min-width: 44px; height: 44px; padding: 0 var(--space-1); display: grid; place-items: center; font-size: var(--text-xl);
   font-weight: 500; color: var(--text-primary); background: var(--surface-2); border-radius: var(--radius-sm);
   animation: qz-sweep 160ms var(--ease-out) both; }
 .qz-cell.is-target .qz-cell__kana { animation-name: qz-light; }
@@ -80,7 +91,7 @@ export function distractorsFor(item, pool, rand, dir) {
   return shuffle(out, rand).slice(0, 3);
 }
 
-/** The row of the chart the target sits in, a i u e o, one entry per kana. */
+/** The row of the chart the target sits in, in column order, one cell per kana. */
 export function rowOf(item, pool) {
   const seen = new Set();
   return pool
@@ -88,7 +99,12 @@ export function rowOf(item, pool) {
     .sort((a, b) => columnIndex(a.column) - columnIndex(b.column));
 }
 
-export function buildWhy(item, pool, api) {
+/**
+ * The strip, then the sentence. The strip's label is the row as the set
+ * writes it; the sentence prints the row as words (DESIGN.md 3.3), which is
+ * the same rowWord() the round header uses, so the two cannot drift.
+ */
+export function buildWhy(item, pool, api, lang = 'en') {
   const row = rowOf(item, pool);
   if (!row.some((x) => x.kana === item.kana)) row.push(item);
   const cells = row.map((x, i) => {
@@ -104,9 +120,10 @@ export function buildWhy(item, pool, api) {
     el('span', { class: 'qz-strip__row', text: item.row }),
     el('div', { class: 'qz-strip__cells' }, cells),
   ]);
+  const row_ = rowWord(item.row, lang);
   const text = item.column
-    ? api.t(S.feedbackSound, { kana: item.kana, row: item.row, column: item.column, sound: item.sound })
-    : api.t(S.feedbackSoundAlone, { kana: item.kana, row: item.row, sound: item.sound });
+    ? api.t(S.feedbackSound, { kana: item.kana, row: row_, column: item.column, sound: item.sound })
+    : api.t(S.feedbackSoundAlone, { kana: item.kana, row: row_, sound: item.sound });
   return { text, node: why([strip, whyLine(text)]) };
 }
 
@@ -157,7 +174,7 @@ export default {
         ms: timer.read(),
         chosen: String(face),
         expected: String(target),
-        why: correct ? undefined : buildWhy(item, pool, api),
+        why: correct ? undefined : buildWhy(item, pool, api, round.lang),
       });
       announce(api, round, { correct, n: round.index + 1, expected: target });
       api.next();

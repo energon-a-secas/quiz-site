@@ -38,6 +38,9 @@ export function readConfig(search = location.search) {
     embed: p.get('embed') === '1',
     game: (p.get('game') || '').trim() || null,
     set: (p.get('set') || '').trim() || null,
+    // Only the first filter= is read: one per round. The grammar is parsed in
+    // js/sets.js, so a malformed one is reported as filter-empty, not dropped.
+    filter: (p.get('filter') || '').trim() || null,
     limit,
     seed,
     // null when absent, so a saved preference is not overwritten with English.
@@ -129,7 +132,11 @@ function onMessage(event) {
   }
 }
 
-/** The same URL without embed and skill: the path that always persists. */
+/**
+ * The same URL without embed and skill: the path that always persists. Every
+ * other parameter is kept, filter included, so the link opens the same
+ * narrowed round standalone rather than the whole set.
+ */
 export function openHref() {
   const p = new URLSearchParams(location.search);
   p.delete('embed');
@@ -157,10 +164,13 @@ export function mountEmbedBar() {
   return bar;
 }
 
-/** Put the set name in the bar once a set has loaded. */
-export function setEmbedTitle(text) {
+/**
+ * Put the set name in the bar once a set has loaded, and the filter in words
+ * after it when the round is narrowed (DESIGN.md section 10).
+ */
+export function setEmbedTitle(text, filterLabel = '') {
   const el = document.getElementById('embedBarTitle');
-  if (el) el.textContent = text;
+  if (el) el.textContent = filterLabel ? `${text} · ${filterLabel}` : text;
 }
 
 /** Install the inbound listener and the resize observer. */

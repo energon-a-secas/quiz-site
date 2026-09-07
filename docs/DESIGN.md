@@ -45,10 +45,12 @@ Top to bottom: **round header**, **prompt**, **options** (the feedback panel
 appears under them, never in their place), **attribution** (only when the
 licence says `screen: "required"`). No card around it; the page is the surface.
 
-- **Round header.** Game name left, `progress` centre, streak right (hidden
-  until 3). Under it the progress track: `total` segments 4px tall with 2px
-  gaps, a correct segment filled `--accent`, a missed one `--danger` at 60%
-  opacity, unplayed ones `--surface-2`. The track is the round's history.
+- **Round header.** Game name left (then a middle dot and the filter in
+  words when the round is filtered, section 3.3), `progress` centre, streak
+  right (hidden until 3). Under it the progress track: `total` segments 4px
+  tall with 2px gaps, a correct segment filled `--accent`, a missed one
+  `--danger` at 60% opacity, unplayed ones `--surface-2`. The track is the
+  round's history.
 - **Prompt.** The thing being asked, then the question line in
   `--text-secondary`. The question line is the game's `describe` string (or
   the per-direction string in sound).
@@ -102,29 +104,49 @@ answer there is no panel: the option fills, the check draws, `#quiz-progress`
 says `live.correct`, and the next item arrives after 600ms (300ms under reduced
 motion). Every miss is read back on the results screen with the same why line.
 
+### 3.3 A filtered round
+
+`?filter=` (grammar in `llms.txt`) narrows the round to the items matching one
+field. The header names it in words after the game name: `filter.row` for one
+row (the k row), `filter.rows` for several (the k and s rows; the list joins
+with commas and `filter.and`), the group's own name from the set's `groups`
+for `group:`, and `filter.other` for any other label (column: i). Wherever
+`{row}` prints, `row.vowels` and `row.moraic-n` replace those two labels and
+every other row prints as written (k, ky, fu). The track counts the filtered
+round; the strip and the distractors still draw from the whole set
+(`round.pool`), so a round on the k row shows all five cells. Nothing else
+changes: same options, feedback and score key. An unknown field or an empty
+match shows `error.filter` in `#quiz-verdict` like every `error.*` and posts
+`filter-empty`. The library is never filtered.
+
 ## 4. Per game: prompt, options, why
 
 **beats.** Prompt: the katakana (`kana`) large, the source `word` under it in
 `--text-secondary`. Romaji is **not** shown before the answer: `baggu` spells
 out the count. Options: four ascending numerals containing `beats`, window
 chosen by seed, lowest at least 1, no keycaps. Why: `split[]` as tiles 44px
-wide with the beat index under each in `--text-xs`, then `romaji`, then the
-rule's one line (`explain`). Tiles light in sequence like a metronome, and a
-small っ or ー gets the same width as the rest, which is the point. Why line:
-`feedback.beats`, read on the results screen and in the live region; the panel
-does not print it, the indexed tiles are the count.
+wide with the beat index under each in `--text-xs`, then `romaji` (macron
+style, printed as the set carries it), then the rule's one line (`explain`).
+Tiles light in sequence like a metronome, and a small っ or ー gets the same
+width as the rest, which is the point. Why line: `feedback.beats`, read on the
+results screen and in the live region; the panel does not print it, the
+indexed tiles are the count.
 
 **sound.** Direction per item by seed: kana shown, pick the sound
 (`sound.toSound`); or sound shown, pick the kana (`sound.toKana`). Four
 options in a 2x2 grid (one column below 480px), keycaps 1 to 4. Distractors:
 the item's `distractors`, else three sounds from the same row or column in the
-set. Why: a strip of the kana's **row**, built
-from the set's items sharing `row`, in column order a i u e o; the target
-cell filled `--accent`, the others `--surface-2`; the row label left of the
-strip, the `column` vowel under the target. Why line: `feedback.sound`.
+set. Why: a strip of the kana's **row**, built from the set's items sharing
+`row`, in column order a i u e o, or ya yu yo for a yoon row: as many cells as
+the row has kana (five, three for ky, four for fu), no empty cell drawn; the
+target filled `--accent`, the others `--surface-2`; the row label left of the
+strip as the set writes it, the `column` under the target (i, or ya). Why
+line: `feedback.sound`, with the `{row}` words of section 3.3.
 
-**pairs.** A board of four pairs: left column `left`, right column `right`,
-the right column shuffled by seed. The board is the prompt; the question line
+**pairs.** A board of four pairs: left column `left`, right column `right` in
+the reader's language (`api.t()`, English with the honesty line of section 11
+when `"es"` is null; a bare romaji string is neither and never trips it), the
+right column shuffled by seed. The board is the prompt; the question line
 is `pairs.prompt`. Tap a left item (keycaps 1 to 4 on the left), then a right
 item (keycaps move right). Three states, three shapes: the picked left item is
 an accent tint at 18% (selection), focus is the ring (you are here), a match
@@ -143,7 +165,8 @@ a chip moves it to the next slot; Backspace or `order.undo` returns the last
 one. The answer commits when the last slot fills. Why: the correct `line`
 with the **first misplaced token** outlined in `--danger` and the learner's
 token hanging under it, struck through, so the line stays one line; then
-`gloss` under the `order.gloss` label. The marked line is the what and the
+`gloss` in the reader's language under the `order.gloss` label (English, and
+the honesty line, when `"es"` is null). The marked line is the what and the
 why, so the panel skips `feedback.answerWas` for this game; `feedback.order`
 is the results row and the live region. On correct the chips slide into one
 line (section 7). The format wants 3 to 9 pieces with no two equal: two is a
@@ -237,9 +260,10 @@ wrap, the beats strip wraps past eight tiles.
 
 `?embed=1` hides the header kit, footer kit, beacon and skip link
 (`body.is-embed`, Rappel's selector list) and mounts a bar: `--surface-1`, 6px
-`--space-4` padding, 1px `--border` below, `--text-xs`; the set name left,
-`embed.open` right as `<a target="_blank" rel="noopener noreferrer">` to the
-same URL without `embed` and `skill`. Surface padding drops to `--space-4`.
+`--space-4` padding, 1px `--border` below, `--text-xs`; the set name left
+(then the filter words, section 3.3, when filtered), `embed.open` right as
+`<a target="_blank" rel="noopener noreferrer">` to the same URL without
+`embed` and `skill`, `filter` kept. Surface padding drops to `--space-4`.
 The round starts on load; `quiz:start` restarts it. When the frame is not
 persisting (`store: "ephemeral"`, see `llms.txt`) one line of `embed.notSaved`
 sits under the bar in `--text-muted`. Attribution renders as in standalone.
@@ -261,7 +285,8 @@ played game is first. While a set fetches, the surface shows a skeleton of the
 header and four option rows.
 
 **The honesty line.** When the reader's language is Spanish and anything on
-the screen fell back to English (a song name or a gloss with `"es": null`),
+the screen fell back to English (a song name, a gloss or a pairs `right`
+with `"es": null`),
 one line of `lang.fallback` in `--text-sm` `--text-secondary` sits under the
 surface, once per screen (CONTRACTS convention 2). It never shows in English.
 
@@ -276,71 +301,19 @@ block of text beside the prompt.
 ## 12. Strings
 
 Every learner-facing string is an `{ en, es }` pair in `js/strings.js`,
-resolved with `api.t()`. Placeholders are `{name}`. The title tag and meta
-description are English.
+resolved with `api.t()`; placeholders are `{name}`. That file is the list and
+where the Spanish is reviewed: this section carried a copy until 2026-09-07
+and was already a key behind (`error.boot`). It now lists only the title tag
+and meta description (English only) and the keys the filtered round adds.
 
 | Key | en | es |
 |---|---|---|
 | title tag | Quiz \| Four small games for kana, beats and song lines | (English only) |
 | meta description | Count the beats of a loanword, pick the sound of a kana, match pairs and put a song line back in order, in rounds short enough to finish on a train | none |
-| game.beats.name | Beats | Pulsos |
-| game.beats.describe | How many beats does this word have? | ¿Cuántos pulsos tiene esta palabra? |
-| game.sound.name | Sound | Sonido |
-| game.sound.describe | Which sound is this kana? Or which kana makes this sound? | ¿Qué sonido tiene este kana? ¿O qué kana hace este sonido? |
-| sound.toSound | What is the sound? | ¿Cuál es el sonido? |
-| sound.toKana | Which kana? | ¿Qué kana? |
-| game.pairs.name | Pairs | Parejas |
-| game.pairs.describe | Match each word with its meaning. | Une cada palabra con su significado. |
-| pairs.prompt | Match the pairs | Une las parejas |
-| pairs.reading | Reading | Lectura |
-| game.order.name | Order | Orden |
-| game.order.describe | Put the song line back in order. | Vuelve a ordenar el verso de la canción. |
-| order.undo | Undo last piece | Deshacer la última pieza |
-| order.line | Your line | Tu verso |
-| order.bank | Pieces | Piezas |
-| order.gloss | Meaning | Significado |
-| feedback.wrong | Not quite | No exactamente |
-| feedback.answerWas | The answer was | La respuesta era |
-| feedback.continue | Continue | Continuar |
-| feedback.beats | {kana} has {n} beats: {split} | {kana} tiene {n} pulsos: {split} |
-| feedback.sound | {kana} is in the {row} row, {column} column: {sound} | {kana} está en la fila {row}, columna {column}: {sound} |
-| feedback.soundAlone | {kana} is the {row} row on its own: {sound} | {kana} es la fila {row} por sí sola: {sound} |
-| feedback.pairs | {left} goes with {right} | {left} va con {right} |
-| feedback.order | {token} goes here, not {chosen} | {token} va aquí, no {chosen} |
-| progress | {n} of {total} | {n} de {total} |
-| streak.count | {n} in a row | {n} seguidas |
-| results.title | Round over | Ronda terminada |
-| results.perfect | Perfect round | Ronda perfecta |
-| results.partial | Round left at {n} of {total} | Ronda interrumpida en {n} de {total} |
-| results.score | {correct} of {total} right | {correct} de {total} correctas |
-| results.median | Median {s} s per answer | Mediana de {s} s por respuesta |
-| results.streak | Best streak {n} | Mejor racha: {n} |
-| results.misses | Worth another look | Para repasar |
-| results.again | Play again | Jugar otra vez |
-| results.change | Change game | Cambiar de juego |
-| library.title | Pick a game | Elige un juego |
-| library.set | Set | Conjunto |
-| library.items | {n} items | {n} elementos |
-| library.round | Round of {n} | Ronda de {n} |
-| library.roundLabel | Round length | Longitud de la ronda |
-| library.play | Play | Jugar |
-| library.last | Last {correct}/{total} | Última: {correct}/{total} |
-| library.unplayed | Not played yet | Aún sin jugar |
-| embed.open | Open in Quiz | Abrir en Quiz |
-| embed.notSaved | Scores are not saved in this frame. | Los resultados no se guardan en este marco. |
-| quit.title | Leave this round? | ¿Salir de esta ronda? |
-| quit.leave | Leave | Salir |
-| quit.stay | Keep playing | Seguir jugando |
-| live.progress | Item {n} of {total} | Elemento {n} de {total} |
-| live.correct | Right. {n} of {total}. | Correcto. {n} de {total}. |
-| live.wrong | Not quite. The answer was {expected}. | No exactamente. La respuesta era {expected}. |
-| keycap.sr | Press {key} | Pulsa {key} |
-| attrib.source | Source | Fuente |
-| attrib.more | Licence and attribution | Licencia y atribución |
-| lang.fallback | Parts of this set have no Spanish yet and are shown in English. | Partes de este conjunto aún no tienen traducción y se muestran en inglés. |
-| error.noSet | No set was given. Pick one from the library. | No se indicó ningún conjunto. Elige uno en la biblioteca. |
-| error.fetch | The set could not be fetched. | No se pudo descargar el conjunto. |
-| error.invalid | This is not a valid neo-quiz-set/1 document: {reason} | No es un documento neo-quiz-set/1 válido: {reason} |
-| error.game | There is no game called {game}. | No existe un juego llamado {game}. |
-| error.mismatch | This set is for {setGame}, not {game}. | Este conjunto es para {setGame}, no para {game}. |
-| footer | Runs entirely in your browser. Scores stay on this device. | Funciona por completo en tu navegador. Los resultados se quedan en este dispositivo. |
+| filter.row | the {row} row | la fila {row} |
+| filter.rows | the {list} rows | las filas {list} |
+| filter.and | and | y |
+| filter.other | {field}: {list} | {field}: {list} |
+| row.vowels | vowel | de las vocales |
+| row.moraic-n | ん | ん |
+| error.filter | Nothing in this set matches {filter}. Check the field and its values. | Nada en este conjunto coincide con {filter}. Revisa el campo y sus valores. |
