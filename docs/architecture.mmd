@@ -1,0 +1,79 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#0f172a"
+    primaryTextColor: "#e2e8f0"
+    primaryBorderColor: "#fb923c"
+    lineColor: "#fdba74"
+    secondaryColor: "#1e293b"
+    tertiaryColor: "#1e293b"
+    clusterBkg: "#fff7ed"
+    clusterBorder: "#fed7aa"
+    edgeLabelBackground: "#ffedd5"
+    mainBkg: "#0f172a"
+    nodeBorder: "#fb923c"
+    titleColor: "#7c2d12"
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+  themeCSS: ".edgeLabel, .edgeLabel p, .edgeLabel span, .edgeLabel text { color: #7c2d12 !important; fill: #7c2d12 !important; }"
+---
+flowchart TB
+    User([Visitor]) --> HTML["index.html\nOne column surface, live regions, attribution slot"]
+    Host([Host site, e.g. Runcible]) -->|"iframe ?embed=1&game=&set=&skill=&limit="| HTML
+
+    subgraph Shell["ES modules, zero build"]
+        HTML --> app["app.js\nEntry point, 18 lines. Wires and decides nothing"]
+        app --> router["router.js\nRead the URL, decide the store, resolve the set, run the round"]
+        router --> state["state.js\nShared state, two Persist kit stores"]
+        router --> keys["keys.js\n1 to 9 answer, Space or Enter continues, via NeoKeys"]
+        router --> render["render.js\nLibrary, skeleton, error, results, attribution"]
+        render --> ui["ui.js\nKeycap, progress track, streak badge, feedback panel, live regions"]
+        render --> strings["strings.js\nEvery learner-facing string as an en and es pair"]
+        ui --> utils["utils.js\nh() builder, escaping, seeded rng, median"]
+        state --> persist["neorgon-persist.js\nsafeGetJSON and safeSetJSON never throw"]
+    end
+
+    subgraph Engine["The round"]
+        router --> round["round.js\nShuffle by seed, mount one item, score, streak, feedback panel"]
+        round --> ui
+        round --> utils
+        round -->|"api: answer, next, say, t"| gameidx["games/index.js\nFour ids, each a dynamic import"]
+        gameidx -.dynamic import.-> beats["games/beats.js\nNumeral tiles. The why is the word cut into beats"]
+        gameidx -.dynamic import.-> sound["games/sound.js\nBoth directions by seed. The why is the kana row"]
+        gameidx -.dynamic import.-> pairs["games/pairs.js\nFour pair board. The why is each missed pair"]
+        gameidx -.dynamic import.-> order["games/order.js\nSlots and a chip bank. The why is the marked line"]
+        beats --> shared["games/shared.js\nOptions, verdict marks, seeded shuffle, clock, announcements"]
+        sound --> shared
+        pairs --> shared
+        order --> shared
+        shared -->|"keycap() only"| ui
+        shared --> strings
+    end
+
+    subgraph Sets["Getting a set in"]
+        router --> setsmod["sets.js\nOne path in: built-in id or ?set= URL, same cap, same rules"]
+        setsmod --> validate["validate-set.js\nneo-quiz-set/1. Pure, never throws"]
+        setsmod --> origin["origin.js\nAllowlist, ?set= rule, ext: namespacing. Pure functions"]
+        Catalog[("data/sets/\nindex.json + 25 generated sets, 482 items\nCC BY-SA 4.0 and public domain")] --> setsmod
+        Remote([https ?set= URL]) -->|"CORS fetch, 400 KB cap"| setsmod
+    end
+
+    subgraph Embed["Embed bridge, neo-quiz-embed/1"]
+        router --> embedmod["embed.js\nreadConfig, chrome strip, postMessage both ways"]
+        embedmod --> origin
+        round -.answer, session-end, resize.-> embedmod
+        origin -->|"referrer allowed AND storage ok"| store{{"store: engine or ephemeral\nDecided before the first write and before quiz:ready"}}
+        store --> state
+    end
+    embedmod <-->|"postMessage, v: 1, to the referrer origin, never '*'\nready, answer, session-end, error, resize\nhello, start, theme"| Host
+
+    state <-->|"quiz:prefs:v1 · quiz:scores:v1\nnothing written while ephemeral"| LS[("localStorage\nvia the Persist kit")]
+
+    Corpus["runcible-site/tools/build-sets.mjs\nWrites both copies. Never hand edit a set"] -.generates.-> Catalog
+    Tools["tools/\nvalidate-set.mjs · test-origin.mjs"] -.make validate.-> validate
+    Tools -.test origin.-> origin
+    Tools -.-> Catalog
+
+    HTML --> Kits["Neorgon Header, Footer, Beacon, Keys, Persist kits\nvendored, never edited here"]
+    HTML --> CDN[("cdn.neorgon.org\nbase.css tokens, season.css")]
