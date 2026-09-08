@@ -200,6 +200,39 @@ export default {
       lefts.find((b) => !b.disabled)?.focus();
     }
 
+    /**
+     * The clock ran out with the board unfinished. It misses the first pair
+     * that has no answer yet: a pair already attempted was decided by that
+     * first attempt (the contract's rule, one answer per pair), so scoring it
+     * again here would count one item twice. The board settles with that
+     * pair marked, and the panel lists it with every other miss.
+     */
+    function expire() {
+      if (done) return;
+      done = true;
+      if (picked) {
+        picked.btn.classList.remove('is-picked');
+        picked.btn.setAttribute('aria-pressed', 'false');
+      }
+      const at = items.findIndex((it) => !attempted.has(it.id));
+      for (const b of [...lefts, ...rightBtns]) b.disabled = true;
+      if (at >= 0) {
+        const item = items[at];
+        const face = faces[at];
+        attempted.add(item.id);
+        lefts[at].classList.add('is-miss');
+        api.answer({
+          itemId: item.id,
+          correct: false,
+          ms: timer.read(),
+          chosen: '',
+          expected: String(face.right),
+          why: buildWhy(item, api, face),
+        });
+      }
+      api.next();
+    }
+
     arm('left');
     root.append(
       prompt({ question: api.t(S.pairsPrompt), id: qid }),
@@ -209,6 +242,7 @@ export default {
 
     return {
       destroy() { done = true; },
+      expire,
       focus() { lefts.find((b) => !b.disabled)?.focus(); },
     };
   },

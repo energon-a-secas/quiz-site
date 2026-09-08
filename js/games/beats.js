@@ -103,6 +103,30 @@ export default {
     });
     group.append(...tiles);
 
+    /**
+     * The clock ran out (llms.txt: the engine calls this, modules never time
+     * anything). The board settles as it would after a wrong pick, without
+     * one: the expected tile fills, nothing is marked wrong, and the miss is
+     * recorded with an empty chosen. The engine puts "Time ran out" above the
+     * why and speaks it; this file never learns what a clock is.
+     */
+    function expire() {
+      if (done) return;
+      done = true;
+      const expected = tiles[window_.indexOf(item.beats)];
+      if (expected) markExpected(expected);
+      settle(group, [expected]);
+      api.answer({
+        itemId: item.id,
+        correct: false,
+        ms: timer.read(),
+        chosen: '',
+        expected: String(item.beats),
+        why: buildWhy(item, api),
+      });
+      api.next();
+    }
+
     function pick(n, btn) {
       if (done) return;
       done = true;
@@ -141,6 +165,7 @@ export default {
 
     return {
       destroy() { done = true; },
+      expire,
       focus() { tiles[0]?.focus(); },
     };
   },

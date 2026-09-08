@@ -95,9 +95,19 @@ body.is-embed .q-surface { padding: var(--space-4); }
   background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
 }
 .q-select:disabled { opacity: .5; }
+.q-library__prefs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-6); }
 .q-sizes { display: flex; align-items: center; gap: var(--space-2); }
 .q-sizes__label { font-size: var(--text-sm); color: var(--text-secondary); margin-right: var(--space-1); }
 .q-sizes .btn { min-width: var(--control-height-sm); padding-inline: var(--space-2); font-variant-numeric: tabular-nums; }
+/* The clock, off by default: a toggle, and the seconds it reveals. */
+.q-timed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.q-timed__field { display: inline-flex; align-items: center; gap: var(--space-2); }
+.q-timed__label { font-size: var(--text-sm); color: var(--text-secondary); }
+.q-timed__input {
+  width: 4.5rem; min-height: var(--control-height-sm); padding: 0 var(--space-2);
+  font: inherit; font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text-primary);
+  background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}
 .q-game__meta { font-size: var(--text-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .q-game__play { justify-self: start; min-width: 128px; }
 @media (min-width: 940px) {
@@ -138,6 +148,18 @@ body.is-embed .q-surface { padding: var(--space-4); }
 .q-track--replay .q-track__seg.is-hit, .q-track--replay .q-track__seg.is-miss {
   animation: q-fade 200ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 40ms);
 }
+/* ── The clock: a 2px bar under the track, and its way out ─────
+   It drains by transform alone, swaps to --danger for the last second (once,
+   no flash and no pulse) and says nothing: it is aria-hidden, the item's
+   announcement carries the seconds and a timeout speaks in #quiz-verdict.
+   Under reduced motion js/clock.js steps the fill once a second instead. */
+.q-clock-slot { margin-top: calc(-1 * var(--space-2)); }
+.q-clock-row { display: flex; align-items: center; gap: var(--space-3); }
+.q-clock { flex: 1; min-width: 0; height: 2px; background: var(--surface-2); border-radius: 1px; overflow: hidden; }
+.q-clock__fill { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: left center; }
+.q-clock.is-last .q-clock__fill { background: var(--danger); }
+.q-clock__off { flex: none; }
+
 .q-quit {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
   padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1);
@@ -172,6 +194,8 @@ body.is-embed .q-surface { padding: var(--space-4); }
 .q-feedback__title, .q-results__title, .q-error__title { width: fit-content; }
 .q-miss { display: flex; flex-direction: column; gap: var(--space-3); }
 .q-miss + .q-miss { padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+/* A miss the clock caused, above the game's own why. */
+.q-miss__timeout { font-weight: 600; color: var(--text-primary); }
 .q-miss__what { color: var(--text-secondary); }
 .q-miss__expected { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary); }
 /* Kana-only answers break only at the spaces between pieces, never inside one. */
@@ -195,6 +219,7 @@ body.is-embed .q-surface { padding: var(--space-4); }
 .q-miss-list__prompt { font-size: var(--text-lg); font-weight: 500; }
 .q-miss-list__expected { font-weight: 600; color: var(--accent-bright); font-variant-numeric: tabular-nums; }
 .q-miss-list__why { grid-column: 1 / -1; font-size: var(--text-sm); color: var(--text-secondary); max-width: 65ch; }
+.q-miss-list__timeout { font-weight: 600; }
 .q-results__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
 
 /* ── Named errors, never a blank ───────────────────────────────── */
@@ -226,6 +251,8 @@ body.is-embed .q-surface { padding: var(--space-4); }
     animation: q-fade 100ms linear both; animation-delay: 0ms;
   }
   .q-streak__ring.is-pulse, .skeleton { animation: none; }
+  /* The bar steps once a second from JS, so it never transitions. */
+  .q-clock__fill { transition: none !important; }
   .btn, .q-track__seg { transition-duration: 100ms; }
 }
 
@@ -237,6 +264,7 @@ body.is-embed .q-surface { padding: var(--space-4); }
   /* One thumb free: the panel's one action spans the column. */
   .q-feedback__continue { align-self: stretch; }
   .q-sizes { width: 100%; }
+  .q-library__prefs { width: 100%; gap: var(--space-3); }
   /* A miss row stacks: the prompt line, then the expected under it, then the why. */
   .q-miss-list__row { grid-template-columns: minmax(0, 1fr); }
 }

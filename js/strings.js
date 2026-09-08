@@ -28,6 +28,10 @@ export const STRINGS = {
   'feedback.wrong': { en: 'Not quite', es: 'No exactamente' },
   'feedback.answerWas': { en: 'The answer was', es: 'La respuesta era' },
   'feedback.continue': { en: 'Continue', es: 'Continuar' },
+  // A timeout is a miss with an empty answer, so it needs its own line above
+  // the game's own why: without it the panel says "Not quite" about a pick
+  // the learner never made.
+  'feedback.timeout': { en: 'Time ran out', es: 'Se acabó el tiempo' },
   'feedback.beats': { en: '{kana} has {n} beats: {split}', es: '{kana} tiene {n} pulsos: {split}' },
   'feedback.sound': { en: '{kana} is in the {row} row, {column} column: {sound}', es: '{kana} está en la fila {row}, columna {column}: {sound}' },
   'feedback.soundAlone': { en: '{kana} is the {row} row on its own: {sound}', es: '{kana} es la fila {row} por sí sola: {sound}' },
@@ -50,6 +54,7 @@ export const STRINGS = {
   'results.score': { en: '{correct} of {total} right', es: '{correct} de {total} correctas' },
   'results.median': { en: 'Median {s} s per answer', es: 'Mediana de {s} s por respuesta' },
   'results.streak': { en: 'Best streak {n}', es: 'Mejor racha: {n}' },
+  'results.timed': { en: '{s} s per item, best streak {n}, {t} timed out', es: '{s} s por elemento, mejor racha {n}, {t} fuera de tiempo' },
   'results.misses': { en: 'Worth another look', es: 'Para repasar' },
   'results.again': { en: 'Play again', es: 'Jugar otra vez' },
   'results.change': { en: 'Change game', es: 'Cambiar de juego' },
@@ -62,14 +67,21 @@ export const STRINGS = {
   'library.unplayed': { en: 'Not played yet', es: 'Aún sin jugar' },
   'library.noSets': { en: 'No set for this game yet.', es: 'Todavía no hay ningún conjunto para este juego.' },
   'library.roundLabel': { en: 'Round length', es: 'Longitud de la ronda' },
+  'library.timed': { en: 'Clock', es: 'Reloj' },
+  'library.seconds': { en: 'Seconds per item', es: 'Segundos por elemento' },
   'embed.open': { en: 'Open in Quiz', es: 'Abrir en Quiz' },
   'embed.notSaved': { en: 'Scores are not saved in this frame.', es: 'Los resultados no se guardan en este marco.' },
   'quit.title': { en: 'Leave this round?', es: '¿Salir de esta ronda?' },
   'quit.leave': { en: 'Leave', es: 'Salir' },
   'quit.stay': { en: 'Keep playing', es: 'Seguir jugando' },
+  // The WCAG 2.2.1 escape, on the round itself and in an embed too: a learner
+  // who cannot turn a clock off is stuck with somebody else's pace.
+  'timed.off': { en: 'Turn off the clock', es: 'Apagar el reloj' },
   'live.progress': { en: 'Item {n} of {total}', es: 'Elemento {n} de {total}' },
   'live.correct': { en: 'Right. {n} of {total}.', es: 'Correcto. {n} de {total}.' },
   'live.wrong': { en: 'Not quite. The answer was {expected}.', es: 'No exactamente. La respuesta era {expected}.' },
+  'live.timed': { en: '{s} seconds', es: '{s} segundos' },
+  'live.timeout': { en: 'Time ran out. The answer was {expected}.', es: 'Se acabó el tiempo. La respuesta era {expected}.' },
   'live.loading': { en: 'Loading the set', es: 'Cargando el conjunto' },
   'keycap.sr': { en: 'Press {key}', es: 'Pulsa {key}' },
   'keys.pick': { en: 'Pick an option', es: 'Elegir una opción' },

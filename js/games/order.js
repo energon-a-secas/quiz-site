@@ -53,7 +53,13 @@ export function bankOrder(tokens, rand) {
   return idx;
 }
 
-/** The correct line with the first misplaced token marked. */
+/**
+ * The correct line with the first misplaced token marked. missAt is -1 when
+ * there is nothing to mark: the clock ran out over a line the learner had not
+ * contradicted yet (nothing placed, or everything placed so far in order).
+ * The line is then shown whole, which is still the answer and still the why,
+ * so the panel keeps skipping "The answer was".
+ */
 export function buildWhy(item, learner, missAt, api) {
   const sep = separatorOf(item);
   const line = el('div', { class: `qz-line${sep ? '' : ' qz-line--tight'}` }, item.tokens.map((tok, k) => {
@@ -64,7 +70,9 @@ export function buildWhy(item, learner, missAt, api) {
       el('span', { class: 'qz-line__chosen', text: learner[k] }),
     ]);
   }));
-  const text = api.t(S.feedbackOrder, { token: item.tokens[missAt], chosen: learner[missAt] });
+  const text = missAt >= 0
+    ? api.t(S.feedbackOrder, { token: item.tokens[missAt], chosen: learner[missAt] })
+    : String(item.line);
   return {
     text,
     showWhat: false,
@@ -147,6 +155,34 @@ export default {
       undo();
     }
 
+    /**
+     * The clock ran out over a half built line. The pieces already placed are
+     * the learner's answer to read the line against: a misplaced one is
+     * marked as it would be on a commit, and a line that is right as far as
+     * it goes is simply shown whole. chosen is empty, as it is for every
+     * timeout in the contract, so the results screen prints the correct line
+     * as the prompt rather than a fragment.
+     */
+    function expire() {
+      if (done) return;
+      done = true;
+      const learner = placed.map((i) => tokens[order[i]]);
+      const missAt = learner.findIndex((tok, k) => tok !== tokens[k]);
+      undoBtn.disabled = true;
+      chips.forEach((c) => { c.disabled = true; });
+      if (missAt >= 0) slots[missAt].classList.add('is-miss');
+      slotList.classList.add('is-settled');
+      api.answer({
+        itemId: item.id,
+        correct: false,
+        ms: timer.read(),
+        chosen: '',
+        expected: String(item.line),
+        why: buildWhy(item, learner, missAt, api),
+      });
+      api.next();
+    }
+
     function commit() {
       done = true;
       const learner = placed.map((i) => tokens[order[i]]);
@@ -206,6 +242,7 @@ export default {
         done = true;
         document.removeEventListener('keydown', onKey);
       },
+      expire,
       focus() { chips.find((c) => !c.disabled)?.focus(); },
     };
   },

@@ -19,6 +19,7 @@
 import { state } from './state.js';
 import { str, t } from './strings.js';
 import { h } from './utils.js';
+import { parseTimedParam } from './clock.js';
 
 export const PROTOCOL_VERSION = 1;
 export const CONTRACT = 'neo-quiz-embed/1';
@@ -42,6 +43,9 @@ export function readConfig(search = location.search) {
     // js/sets.js, so a malformed one is reported as filter-empty, not dropped.
     filter: (p.get('filter') || '').trim() || null,
     limit,
+    // Seconds, or null. A host times its own frame with this and nothing else:
+    // a clock saved on this browser never reaches an embed (js/clock.js).
+    timed: parseTimedParam(p.get('timed')),
     seed,
     // null when absent, so a saved preference is not overwritten with English.
     lang: lang === 'en' || lang === 'es' ? lang : null,

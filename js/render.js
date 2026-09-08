@@ -9,6 +9,7 @@ import { h, append, clear } from './utils.js';
 import { progressTrack, verdict, live } from './ui.js';
 import { GAME_IDS } from './games/index.js';
 import { openHref } from './embed.js';
+import { clampSeconds, TIMED_DEFAULT, TIMED_MIN, TIMED_MAX } from './clock.js';
 
 /** The set each library row has picked, so a re-render keeps the choice. */
 const choice = {};
@@ -103,6 +104,50 @@ function roundSizes(lang, rerender) {
 }
 
 /**
+ * The clock, as a preference set before the round starts, which is what WCAG
+ * 2.2.1 asks for. The toggle carries the state and the number input the
+ * seconds; both write `timed` in prefs, false when it is off. It is also the
+ * one way back after "Turn off the clock" during a round, so it is never
+ * hidden behind the round it configures.
+ */
+function timedControl(lang, rerender) {
+  const on = Number.isInteger(state.prefs.timed);
+  const seconds = on ? state.prefs.timed : TIMED_DEFAULT;
+  const inputId = 'q-timed-seconds';
+  const input = h('input', {
+    type: 'number', id: inputId, class: 'q-timed__input', value: String(seconds),
+    min: String(TIMED_MIN), max: String(TIMED_MAX), step: '1', inputmode: 'numeric',
+  });
+  // On change, not on input: a half typed 1 of 12 would otherwise be clamped
+  // to 3 under the learner's cursor. The clamped value is written back, so the
+  // field never shows a number the round will not use.
+  input.addEventListener('change', () => {
+    const next = clampSeconds(Number(input.value));
+    input.value = String(next);
+    state.prefs.timed = next;
+    savePrefs();
+  });
+  const field = h('span', { class: 'q-timed__field', hidden: !on }, [
+    h('label', { class: 'q-timed__label', for: inputId, text: str('library.seconds', lang) }),
+    input,
+  ]);
+  return h('div', { class: 'q-timed' }, [
+    h('button', {
+      type: 'button', class: 'btn btn--ghost btn--sm', 'aria-pressed': String(on),
+      text: str('library.timed', lang),
+      on: {
+        click: () => {
+          state.prefs.timed = on ? false : clampSeconds(Number(input.value));
+          savePrefs();
+          rerender();
+        },
+      },
+    }),
+    field,
+  ]);
+}
+
+/**
  * The home screen: the four games as a list, the last played first. The
  * header kit owns the page's h1, so the title here is an h2. The keys are not
  * repeated per row: the ? sheet lists them once.
@@ -114,7 +159,7 @@ export function renderLibrary(root, { onPlay }) {
     append(root, h('section', { class: 'q-library', 'aria-labelledby': 'q-library-title' }, [
       h('div', { class: 'q-library__head' }, [
         h('h2', { class: 'q-library__title', id: 'q-library-title', text: str('library.title', lang) }),
-        roundSizes(lang, paint),
+        h('div', { class: 'q-library__prefs' }, [roundSizes(lang, paint), timedControl(lang, paint)]),
       ]),
       h('ul', { class: 'q-games' }, gameOrder().map((g) => gameRow(g, lang, onPlay))),
     ]));
@@ -169,17 +214,28 @@ export function renderResults(root, summary, { onAgain, onChange, partial = fals
   append(root, h('section', { class: 'q-results', 'aria-labelledby': 'q-results-title' }, [
     h('h2', { class: 'q-results__title', id: 'q-results-title', tabindex: '-1', text: title }),
     h('p', { class: 'q-results__score', text: str('results.score', lang, { correct: summary.correct, total: partial ? summary.answered : summary.total }) }),
-    h('p', { class: 'q-results__meta' }, [
-      str('results.median', lang, { s: (summary.medianMs / 1000).toFixed(1) }),
-      ' · ',
-      str('results.streak', lang, { n: summary.bestStreak }),
-    ]),
+    // A timed round says the same three numbers in one line, with the count
+    // the clock cost: a median beside "0 timed out" is a different reading of
+    // the round than the same median beside "3 timed out".
+    h('p', { class: 'q-results__meta' }, summary.timed
+      ? [str('results.timed', lang, {
+        s: (summary.medianMs / 1000).toFixed(1), n: summary.bestStreak, t: summary.timedOut || 0,
+      })]
+      : [
+        str('results.median', lang, { s: (summary.medianMs / 1000).toFixed(1) }),
+        ' · ',
+        str('results.streak', lang, { n: summary.bestStreak }),
+      ]),
     progressTrack({ results: summary.results, total: summary.total, label, replay: true }),
     misses.length ? h('h3', { class: 'q-results__misses', text: str('results.misses', lang) }) : null,
     misses.length ? h('ul', { class: 'q-miss-list' }, misses.map((r) => h('li', { class: 'q-miss-list__row' }, [
       h('span', { class: 'q-miss-list__prompt', text: promptOf(summary.game, byId.get(r.itemId), r) }),
       h('span', { class: 'q-miss-list__expected', text: r.expected }),
-      h('span', { class: 'q-miss-list__why', text: r.why?.text || '' }),
+      h('span', { class: 'q-miss-list__why' }, [
+        r.timedOut ? h('span', { class: 'q-miss-list__timeout', text: str('feedback.timeout', lang) }) : null,
+        r.timedOut && r.why?.text ? ' · ' : null,
+        r.why?.text || '',
+      ]),
     ]))) : null,
     h('div', { class: 'q-results__actions' }, [
       h('button', { type: 'button', class: 'btn btn--primary', text: str('results.again', lang), on: { click: onAgain } }),

@@ -12,6 +12,7 @@ import { isAllowedOrigin } from './origin.js';
 import { loadBuiltinIndex, resolveSet, parseFilter, filterItems, filterWords, SetError } from './sets.js';
 import { loadGame, GameLoadError } from './games/index.js';
 import { createRound } from './round.js';
+import { resolveTimedSeconds } from './clock.js';
 import { renderLibrary, renderSkeleton, renderError, renderResults, renderAttribution, relabelChrome, refreshLangNote } from './render.js';
 import { initKeys, registerGameKeys } from './keys.js';
 import { str, t, beginPage, onFallback } from './strings.js';
@@ -143,6 +144,9 @@ function showResults(summary, { partial = false } = {}) {
   post('quiz:session-end', {
     setId: summary.setId, game: summary.game, answered: summary.answered, correct: summary.correct,
     wrong: summary.wrong, ms: summary.ms, medianMs: summary.medianMs, bestStreak: summary.bestStreak,
+    // timedOut is a count, and budgetMs is the clock still in force: null when
+    // the round was untimed, and null too when the learner turned it off.
+    timedOut: summary.timedOut || 0, budgetMs: summary.budgetMs ?? null,
     total: summary.total, complete: summary.answered >= summary.total,
   });
   emitResize();
@@ -160,10 +164,15 @@ function startRound() {
   // group name shown in English to a Spanish reader has to be noted on the
   // screen it appears on for the honesty line to show with it.
   state.filterLabel = state.filter ? filterWords(state.filter, state.set, state.lang) : '';
+  // The clock is decided per round, not per page: a learner who turns it off
+  // mid-round has written timed: false, and every round after it reads that
+  // first (js/clock.js), including a restart the host asked for.
   state.round = createRound({
     set: state.set, setId: state.setId, items: state.items, game: state.game, limit: state.limit,
     seed: state.seed, lang: state.lang, embed: state.embed, skill: state.skill,
     filterLabel: state.filterLabel, root: root(), onEnd: showResults, onLeave,
+    timedSeconds: resolveTimedSeconds({ cfg: state.cfg, prefs: state.prefs, embed: state.embed }),
+    onTimedOff: () => { state.prefs.timed = false; savePrefs(); },
   });
   emitResize();
 }

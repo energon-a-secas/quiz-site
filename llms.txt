@@ -152,11 +152,23 @@ nothing, and the fallback line is how a set says so.
   other parameter (filter included) except embed and skill; the round starts on load
 - limit=<N> items per round, default 10, capped at the set's length. A value
   that is not a finite positive integer is discarded
+- timed=1 clocks every item at 8 seconds; timed=<N>, N an integer 3 to 30, sets
+  the seconds. Anything else is discarded, like a bad limit, and the round is untimed
 - seed=<string> makes the shuffle, the numeral window and the sound direction
   deterministic, so a host can replay a round. Default: random per load
 - lang=en | es. Absent: the saved preference, then the browser, then en
 - skill=<dotted> overrides the set's skill on every quiz:answer
 - theme=<name> is read by the fleet's pre-paint theme script, as on every site
+
+## Timed rounds
+
+Time is measured, never raced, unless asked. A clock is opt-in under WCAG
+2.2.1: timed= in the URL, or the library toggle, saved in quiz:prefs:v1 and
+read standalone only, so an embed times only when its host writes timed=. When
+the clock runs out the item is a miss: chosen "", why line "Time ran out" ("Se
+acabó el tiempo") above the game's own reason, the streak broken, the round
+going on. "Turn off the clock", visible on the round, embed included, works
+mid-item and saves timed: false, which no later URL or host overrides
 
 ## Embedding (iframe), contract `neo-quiz-embed/1`
 
@@ -174,15 +186,16 @@ whose `v` you do not recognise.** chosen and expected are always strings.
   round length after filter and limit; store is "engine" when this frame
   writes quiz:scores:v1, else "ephemeral" (see the allowlist). Fires once the
   set resolved, and again every time you send quiz:hello
-- quiz:answer `{ setId, game, itemId, skill, correct, ms, chosen, expected }`,
-  one per item; in pairs one per pair, decided by the first attempt on that
-  left item. ms runs from the item's first paint (in pairs, the previous
-  lock) to the commit
+- quiz:answer `{ setId, game, itemId, skill, correct, ms, chosen, expected,
+  timedOut, budgetMs }`, one per item; in pairs one per pair, decided by the
+  first attempt on that left item. ms runs from the item's first paint (in
+  pairs, the previous lock) to the commit. timedOut is true when the clock
+  ran out (correct false, chosen ""); budgetMs is the clock in ms, else null
 - quiz:session-end `{ setId, game, answered, correct, wrong, ms, medianMs,
-  bestStreak, total, complete }`, once per round, as the results screen
-  renders. complete is false when the learner left early (embed only: Leave
-  shows partial results and records no score); a host marking an exercise
-  finished checks it first
+  bestStreak, timedOut, budgetMs, total, complete }`, once per round, as the
+  results screen renders; timedOut is a count. complete is false when the
+  learner left early (embed only: Leave shows partial results and records no
+  score); a host marking an exercise finished checks it first
 - quiz:error `{ code, message }`. Codes: no-set, set-fetch-failed,
   set-invalid, game-unknown, game-mismatch, filter-empty. The frame shows its
   own message either way; this lets you fall back
@@ -245,7 +258,7 @@ The same file carries isAllowedSetSrc and namespacedSetId (the ext: rule).
 ## The game module interface
 
 Every game is one ES module in js/games/<id>.js, under 500 lines, exporting
-`{ id, name, describe, keys, mount(host, round, api) }`; mount returns `{ destroy() }`.
+`{ id, name, describe, keys, mount(host, round, api) }`; mount returns `{ destroy(), expire() }`.
 
 - id equals the file name and the set's game; name and describe, bilingual,
   are what the library and the round header show
@@ -271,10 +284,15 @@ Every game is one ES module in js/games/<id>.js, under 500 lines, exporting
   to 9 and clicks the matching data-key; keycap(n) from js/ui.js renders the
   box beside it, the digit never in the button's text. beats renders no
   keycaps: each numeral tile's data-key is its own value
+- expire() is the engine's call when the clock runs out (modules never time
+  anything): answer correct false, chosen "", a wrong pick's why (the engine
+  adds "Time ran out"), then next(); in pairs the first unlocked pair misses
 
 ## Storage
 
-- quiz:prefs:v1 `{ v: 1, lang: "en" | "es", round: 5 | 10 | 20, lastGame: <game> | null }`
+- quiz:prefs:v1 `{ v: 1, lang: "en" | "es", round: 5 | 10 | 20, lastGame: <game>
+  | null, timed?: false | 3..30 }`: false is the clock turned off, a number the
+  library toggle's seconds (standalone only; timed= in the URL wins its round)
 - quiz:scores:v1 `{ v: 1, rounds: { "<game>/<setId>": { played, last: { correct,
   total, at }, best: { correct, total }, bestStreak } } }`, at in ms. A
   filtered round is keyed like the whole set: a filter is not a second score
@@ -293,19 +311,21 @@ Every game is one ES module in js/games/<id>.js, under 500 lines, exporting
 - type "quiz" with game (required, one of the four), src (required), skill
   (required), limit (optional positive integer), filter (optional, the URL
   grammar, one field; validate-book checks the grammar and that src carries a
-  matching item, so filter-empty is a build error, never a learner's screen)
+  matching item, so filter-empty is a build error, never a learner's screen),
+  timed (optional: true for 8 seconds or an integer 3 to 30; else validate-book fails)
 - src is a neo-quiz-set/1 document on Runcible's origin and MUST be declared
   in the Book's data[]; an undeclared src is a load error, the deck's rule
 - skill is what the host records: every quiz:answer becomes one attempt
   { itemId, skill: spec.skill, correct, ms, answer: chosen, expected }, source
-  "quiz". The engine's skill is informational. The deck rule applies
-  unchanged: a skill nothing in the Book reads is an error
+  "quiz", a timeout as any other miss. The engine's skill is informational.
+  The deck rule applies unchanged: a skill nothing in the Book reads is an error
 - the host builds ?embed=1&game=&set=<absolute src>&skill=&lang=&limit=&filter=
-  at the engine origin (https://quiz.neorgon.com, or http://localhost:8880 when
-  the host is local), sends quiz:hello on load, filters on e.origin and
-  e.source, drops unknown v, converts session-end into api.done, shouts a
-  malformed answer on the page, times eight seconds of silence, and renders an
-  "Open in Quiz" link beside the exercise, filter kept, frame loaded or not
+  [&timed=] (true as 1) at the engine origin (https://quiz.neorgon.com, or
+  http://localhost:8880 when the host is local), sends quiz:hello on load,
+  filters on e.origin and e.source, drops unknown v, converts session-end into
+  api.done, shouts a malformed answer on the page, times eight seconds of
+  silence, and renders an "Open in Quiz" link beside the exercise, filter and
+  timed kept, frame loaded or not
 
 ## Keyboard
 

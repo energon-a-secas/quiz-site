@@ -12,6 +12,7 @@
  */
 
 import { safeGetJSON, safeSetJSON, storageAvailable } from './neorgon-persist.js';
+import { TIMED_MIN, TIMED_MAX } from './clock.js';
 
 export const PREFS_KEY = 'quiz:prefs:v1';
 export const SCORES_KEY = 'quiz:scores:v1';
@@ -27,7 +28,13 @@ export const state = {
   store: 'engine',
   storageOk: true,
   hostOrigin: null,
-  prefs: { lang: null, round: DEFAULT_LIMIT, lastGame: null },
+  /**
+   * timed is three-valued: null is "never asked", false is the clock turned
+   * off (and nothing but the library toggle starts it again), a number is the
+   * library's seconds. It is read standalone only, so a saved clock never
+   * follows a learner into somebody else's embed.
+   */
+  prefs: { lang: null, round: DEFAULT_LIMIT, lastGame: null, timed: null },
   scores: { rounds: {} },
   /** the built-in catalog, normalised by js/sets.js */
   builtin: [],
@@ -52,6 +59,11 @@ export const state = {
   summary: null,
 };
 
+/** The seconds prefs may carry: an integer inside the contract's range. */
+function isTimedSeconds(v) {
+  return Number.isInteger(v) && v >= TIMED_MIN && v <= TIMED_MAX;
+}
+
 /** true when a write should reach disk. */
 export function persists() {
   return state.store === 'engine';
@@ -64,6 +76,7 @@ export function loadAll() {
     if (prefs.lang === 'en' || prefs.lang === 'es') state.prefs.lang = prefs.lang;
     if (ROUND_SIZES.includes(prefs.round)) state.prefs.round = prefs.round;
     if (typeof prefs.lastGame === 'string') state.prefs.lastGame = prefs.lastGame;
+    if (prefs.timed === false || isTimedSeconds(prefs.timed)) state.prefs.timed = prefs.timed;
   }
   const scores = safeGetJSON(SCORES_KEY, null);
   if (scores && typeof scores === 'object' && scores.v === 1 && scores.rounds && typeof scores.rounds === 'object') {
@@ -73,12 +86,16 @@ export function loadAll() {
 
 export function savePrefs() {
   if (!persists()) return false;
-  return safeSetJSON(PREFS_KEY, {
+  const doc = {
     v: 1,
     lang: state.prefs.lang,
     round: state.prefs.round,
     lastGame: state.prefs.lastGame,
-  });
+  };
+  // Optional in the document, as llms.txt writes it: a learner who never met
+  // the clock has no timed key, and one who turned it off has timed: false.
+  if (state.prefs.timed === false || isTimedSeconds(state.prefs.timed)) doc.timed = state.prefs.timed;
+  return safeSetJSON(PREFS_KEY, doc);
 }
 
 export function scoreKey(game, setId) {

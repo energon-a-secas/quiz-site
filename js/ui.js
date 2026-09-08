@@ -58,6 +58,10 @@ export function streakBadge(n, lang, pulse = false) {
  * the expected answer (order's marked line) passes showWhat: false and the
  * "The answer was" line is skipped rather than said twice. Focus lands on
  * the title.
+ *
+ * A miss the clock caused (timedOut) opens with "Time ran out" above the
+ * game's own why: the panel's title says "Not quite" about a pick, and a
+ * learner who made none is owed the reason the item was scored at all.
  */
 export function feedbackPanel({ lang, misses, onContinue }) {
   const title = h('h2', { class: 'q-feedback__title', id: 'q-feedback-title', tabindex: '-1', text: str('feedback.wrong', lang) });
@@ -66,6 +70,7 @@ export function feedbackPanel({ lang, misses, onContinue }) {
     const why = m.why || {};
     const node = why.node instanceof Node ? why.node : null;
     append(panel, h('div', { class: 'q-miss' }, [
+      m.timedOut ? h('p', { class: 'q-miss__timeout', text: str('feedback.timeout', lang) }) : null,
       node && why.showWhat === false ? null : h('p', { class: 'q-miss__what' }, [
         h('span', { class: 'q-miss__label', text: str('feedback.answerWas', lang) }),
         ' ',

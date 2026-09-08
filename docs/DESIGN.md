@@ -8,18 +8,18 @@ disappears into the round). It renders the contract in `llms.txt`, which wins.
 - **Scene.** A learner on a phone, on a train, in the evening, one thumb free,
   about forty seconds between stops. The fleet ground (`--bg` from CDN
   `base.css`) is dark and the scene agrees with it; nothing is overridden.
-- **Colour strategy: Restrained.** Fleet neutrals, one accent. The two local
-  knobs are `--accent: #fb923c` and `--accent-bright: #fdba74` in
+- **Colour strategy: Restrained.** Fleet neutrals, one accent, never decoration.
+  The two local knobs are `--accent: #fb923c` and `--accent-bright: #fdba74` in
   `css/style.css`; no other token is redeclared. The accent marks the current
-  pick, the right answer, focus, the streak ring and filled progress. Never decoration.
+  pick, the right answer, focus, the streak ring, the clock and filled progress.
 - **Verdict colours.** `--danger` (the scaffold's) for a wrong pick, `--accent`
   for the right one. No green. A wrong pick is a 2px border, never a filled red
   box, so after a miss the loudest thing on screen is the right answer.
 - **Anchor references.** A metronome (beats light in time), a kana chart (the
   sound feedback is one row of the chart), fridge magnets (order chips).
-- **Anti-goals.** Not Proctor: no timer bar, no percent grade, no exam
-  register. No confetti, mascot, emoji, gradient text or card inside a card.
-  Numbers that look like options are the defect this site exists to fix.
+- **Anti-goals.** Not Proctor: no clock unasked (section 5), no percent grade,
+  no exam register. No confetti, mascot, emoji, gradient text or card inside a
+  card. Numbers that look like options are the defect this site exists to fix.
 
 ## 2. Type scale
 
@@ -49,11 +49,9 @@ licence says `screen: "required"`). No card around it; the page is the surface.
   words when the round is filtered, section 3.3), `progress` centre, streak
   right (hidden until 3). Under it the progress track: `total` segments 4px
   tall with 2px gaps, a correct segment filled `--accent`, a missed one
-  `--danger` at 60% opacity, unplayed ones `--surface-2`. The track is the
-  round's history.
+  `--danger` at 60% opacity, unplayed ones `--surface-2`.
 - **Prompt.** The thing being asked, then the question line in
-  `--text-secondary`. The question line is the game's `describe` string (or
-  the per-direction string in sound).
+  `--text-secondary`: the game's `describe` string (sound's per-direction one).
 - **Options.** One `<div role="group" aria-labelledby="{question line id}">`.
   Each option is a `<button type="button">` of min-height `--control-height`,
   `--surface-1` fill, 1px `--border`, `--radius`. States: hover `--surface-2`;
@@ -86,7 +84,8 @@ After a **wrong** answer the options stay, greyed, the chosen one with a
 under them: `--surface-1`, 1px `--border`, `--radius-lg`, padding `--space-4`
 `--space-6`. Contents, in order:
 
-1. Title `feedback.wrong`.
+1. Title `feedback.wrong`, focused programmatically; the ring wraps the words
+   only (`width: fit-content`), not the column.
 2. The **what**: `feedback.answerWas` followed by the expected answer in the
    option's own type size. Skipped when the why already shows the whole
    expected answer (order's marked line), so a fact is never stated twice.
@@ -95,9 +94,6 @@ under them: `--surface-1`, 1px `--border`, `--radius-lg`, padding `--space-4`
    sentence what its picture already shows.
 4. One `.btn--primary`, `feedback.continue`, `aria-keyshortcuts="Space Enter"`
    (full width under 480px).
-
-The programmatic focus on the title draws the focus ring around the words
-only (`width: fit-content`), not the column.
 
 In pairs the panel lists every pair missed on the board. After a **correct**
 answer there is no panel: the option fills, the check draws, `#quiz-progress`
@@ -114,10 +110,9 @@ for `group:`, and `filter.other` for any other label (column: i). Wherever
 `{row}` prints, `row.vowels` and `row.moraic-n` replace those two labels and
 every other row prints as written (k, ky, fu). The track counts the filtered
 round; the strip and the distractors still draw from the whole set
-(`round.pool`), so a round on the k row shows all five cells. Nothing else
-changes: same options, feedback and score key. An unknown field or an empty
-match shows `error.filter` in `#quiz-verdict` like every `error.*` and posts
-`filter-empty`. The library is never filtered.
+(`round.pool`), so a round on the k row shows all five cells. An unknown field
+or an empty match shows `error.filter` in `#quiz-verdict` like every `error.*`
+and posts `filter-empty`. The library is never filtered.
 
 ## 4. Per game: prompt, options, why
 
@@ -169,13 +164,26 @@ token hanging under it, struck through, so the line stays one line; then
 the honesty line, when `"es"` is null). The marked line is the what and the
 why, so the panel skips `feedback.answerWas` for this game; `feedback.order`
 is the results row and the live region. On correct the chips slide into one
-line (section 7). The format wants 3 to 9 pieces with no two equal: two is a
-coin flip and two identical pieces have no wrong order.
+line (section 7). The format wants 3 to 9 pieces, no two equal (`llms.txt`).
 
 ## 5. Timing and streaks
 
 - `ms` runs from the game's first paint to the commit (in pairs, from the
-  previous lock). It is recorded and reported, never raced: no countdown.
+  previous lock), recorded and never raced unless asked: a clock is opt-in
+  (`?timed=`, the library toggle, or a host's URL) under WCAG 2.2.1: off,
+  longer or shorter before the round, off during it. It only adds a budget.
+- **The clock.** A 2px bar under the progress track, `--accent`, draining by
+  `scaleX` over the budget (3 to 30 s, default 8, linear), `--danger` for the
+  last second: one swap, no flash, no pulse, no sound. It is `aria-hidden`;
+  section 8 says the time. Under reduced motion it steps once a second.
+- **Running out.** A miss with `chosen` empty: the engine calls the module's
+  `expire()`, the panel of 3.2 opens with `feedback.timeout` above the game's
+  own why, and the round continues. A timeout breaks the streak. In pairs the
+  clock restarts at every lock and a timeout misses the first unlocked pair.
+- **Turn off the clock.** `.btn--ghost.btn--sm` `timed.off`, right of the bar,
+  embed included. Mid-item it stops the bar and the rest of the round is
+  untimed (`budgetMs` null); `quiz:prefs:v1` gets `timed: false` wherever
+  prefs are written, and only the library toggle starts a clock again.
 - Streak counts consecutive correct answers. From 3 it shows in the round
   header as `streak.count` beside an 8px filled `--accent` dot (an empty ring
   read as an unselected radio); at 5 and every 5 after, the dot scales 1 to
@@ -192,7 +200,9 @@ order, the learner's own line, never the gloss), the expected answer and its
 why line; kana break only at the spaces between pieces. Then `results.again`
 (`.btn--primary`, same set, new seed) and, standalone, `results.change`
 (`.btn--ghost`, to the library), replaced in embed by the `embed.open` link.
-Focus lands on the title.
+Focus lands on the title. A timed round swaps the median and streak line for
+`results.timed` (median seconds per item, best streak, how many timed out); a
+timed-out miss reads `feedback.timeout` before its why line.
 
 A round left early in embed (Leave in the quit prompt) shows the same screen
 titled `results.partial` with the score out of what was answered, the track
@@ -216,8 +226,8 @@ Every animation reports a state change; the game moments below are where the lif
 
 No bounce (`--ease-snap` is never used), no layout property animated, no load
 choreography. Under `prefers-reduced-motion: reduce` every entry above becomes
-a 100ms opacity change; the beats tiles and the sound strip light all at once;
-the check still draws (a 200ms stroke on a 20px icon).
+a 100ms opacity change; the beats tiles and the sound strip light all at once,
+the check still draws (200ms), the clock steps once a second.
 
 ## 8. Keyboard and screen reader
 
@@ -228,21 +238,23 @@ the check still draws (a 200ms stroke on a 20px icon).
   are the kit's, never rebound; in embed there is no `H`. All of it goes
   through NeoKeys, so its typing guard and WCAG 2.1.4 remap panel apply.
 - **Focus order.** Header kit, round header (the streak is not focusable),
-  options in reading order, attribution link, footer. After a wrong answer
-  focus moves to the panel's title (`tabindex="-1"`); Tab reaches Continue.
-  After Continue, focus moves to the new item's first option. On the results
-  screen focus moves to the title.
+  `timed.off` when a clock runs, options in reading order, attribution link,
+  footer. After a wrong answer focus moves to the panel's title
+  (`tabindex="-1"`); Tab reaches Continue. After Continue, focus moves to the
+  new item's first option. On the results screen focus moves to the title.
 - **Live regions.** `#quiz-progress` (`aria-live="polite"`): `live.progress`
   per item, `live.correct` after a correct answer, and `api.say()` text.
   `#quiz-verdict` (`aria-live="assertive"`, `role="alert"`): `live.wrong` after
-  a wrong answer and every `error.*`.
+  a wrong answer and every `error.*`. In a timed round `#quiz-progress` adds
+  `live.timed` ("8 seconds") to the item announcement; the clock itself never
+  speaks again, and a timeout reads `live.timeout` in `#quiz-verdict`.
 - **Names.** An option's accessible name is its text only; the keycap is
   hidden and `aria-keyshortcuts` carries the digit. A locked pair gets
   `aria-pressed="true"`. Order slots are an `<ol aria-label="order.line">`, the
   bank a group labelled `order.bank`. The progress track is
   `role="img"` with `progress` as its label.
 - **Contrast.** `--text-primary` on `--bg` and `--bg` on `--accent` both clear
-  4.5:1; `--danger` is only ever a border or a label beside text.
+  4.5:1; `--danger` is only ever a border, a 2px bar or a label beside text.
 
 ## 9. Responsive
 
@@ -270,19 +282,22 @@ sits under the bar in `--text-muted`. Attribution renders as in standalone.
 
 ## 11. The library (standalone)
 
-The home screen. Title `library.title` (an `h2`: the header kit owns the
-page's `h1`) with the round length beside it, once: `library.roundLabel` and
-three `.btn--ghost.btn--sm` toggles reading 5, 10 and 20 (`aria-pressed`,
-`library.round` as the accessible name). It is one preference for every game,
-so it is one control and not a copy per row. Then the four games as a
+The home screen. Title `library.title` (an `h2`: the header kit owns the page's
+`h1`) with the round length beside it, once: `library.roundLabel` and three
+`.btn--ghost.btn--sm` toggles reading 5, 10 and 20 (`aria-pressed`,
+`library.round` as the accessible name). It is one preference for every game, so
+it is one control and not a copy per row. Beside it, `library.timed`, a
+`.btn--ghost.btn--sm` toggle (`aria-pressed`) that reveals a native number input
+labelled `library.seconds` (3 to 30, default 8), both written to `timed` in
+prefs; turning it on is the way back after `timed.off`. Then the four games as a
 **list**, not a grid, rows separated by 1px `--border-subtle`. A row is: the
 game name (`--text-xl`, a step under the title), its `describe` line, the set
 picker (`library.set`, a native `<select>` over the built-in index filtered to
 that game, `library.items` after each name), the last score from
-`quiz:scores:v1` (`library.last` or `library.unplayed`), and `library.play`.
-The keys are not repeated per row; the `?` sheet lists them once. The last
-played game is first. While a set fetches, the surface shows a skeleton of the
-header and four option rows.
+`quiz:scores:v1` (`library.last` or `library.unplayed`), and `library.play`. The
+keys are not repeated per row; the `?` sheet lists them once. The last played
+game is first. While a set fetches, the surface shows a skeleton of the header
+and four option rows.
 
 **The honesty line.** When the reader's language is Spanish and anything on
 the screen fell back to English (a song name, a gloss or a pairs `right`
@@ -295,16 +310,14 @@ stays visible under the surface on every screen that shows the set: the
 attribution's first sentence in the licensor's own words, clamped to one line,
 with `attrib.more` as the disclosure; the rest of the attribution and the
 `attrib.source` link open under it (`<details>`, the footer kit's own
-disclaimer rule). The acknowledgement is on screen without being the largest
-block of text beside the prompt.
+disclaimer rule).
 
 ## 12. Strings
 
 Every learner-facing string is an `{ en, es }` pair in `js/strings.js`,
 resolved with `api.t()`; placeholders are `{name}`. That file is the list and
-where the Spanish is reviewed: this section carried a copy until 2026-09-07
-and was already a key behind (`error.boot`). It now lists only the title tag
-and meta description (English only) and the keys the filtered round adds.
+where the Spanish is reviewed. Below: the title tag, the meta description
+(English only) and the keys the filtered and the timed round add.
 
 | Key | en | es |
 |---|---|---|
@@ -317,3 +330,10 @@ and meta description (English only) and the keys the filtered round adds.
 | row.vowels | vowel | de las vocales |
 | row.moraic-n | ん | ん |
 | error.filter | Nothing in this set matches {filter}. Check the field and its values. | Nada en este conjunto coincide con {filter}. Revisa el campo y sus valores. |
+| feedback.timeout | Time ran out | Se acabó el tiempo |
+| timed.off | Turn off the clock | Apagar el reloj |
+| live.timed | {s} seconds | {s} segundos |
+| live.timeout | Time ran out. The answer was {expected}. | Se acabó el tiempo. La respuesta era {expected}. |
+| results.timed | {s} s per item, best streak {n}, {t} timed out | {s} s por elemento, mejor racha {n}, {t} fuera de tiempo |
+| library.timed | Clock | Reloj |
+| library.seconds | Seconds per item | Segundos por elemento |

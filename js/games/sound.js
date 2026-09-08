@@ -156,6 +156,24 @@ export default {
     });
     group.append(...buttons);
 
+    /** The clock ran out: the expected option fills, nothing was chosen. */
+    function expire() {
+      if (done) return;
+      done = true;
+      const expected = buttons[faces.indexOf(target)];
+      if (expected) markExpected(expected);
+      settle(group, [expected]);
+      api.answer({
+        itemId: item.id,
+        correct: false,
+        ms: timer.read(),
+        chosen: '',
+        expected: String(target),
+        why: buildWhy(item, pool, api, round.lang),
+      });
+      api.next();
+    }
+
     function pick(face, btn) {
       if (done) return;
       done = true;
@@ -193,6 +211,7 @@ export default {
 
     return {
       destroy() { done = true; },
+      expire,
       focus() { buttons[0]?.focus(); },
     };
   },
