@@ -321,7 +321,7 @@ where the Spanish is reviewed. Below: the title tag, the meta description
 
 | Key | en | es |
 |---|---|---|
-| title tag | Quiz \| Four small games for kana, beats and song lines | (English only) |
+| title tag | Quiz \| Small games for kana, beats and song lines | (English only) |
 | meta description | Count the beats of a loanword, pick the sound of a kana, match pairs and put a song line back in order, in rounds short enough to finish on a train | none |
 | filter.row | the {row} row | la fila {row} |
 | filter.rows | the {list} rows | las filas {list} |

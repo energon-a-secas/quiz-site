@@ -104,7 +104,7 @@ export const STRINGS = {
   'error.module': { en: '{path} did not load: {reason}', es: '{path} no se cargó: {reason}' },
   'error.library': { en: 'Back to the library', es: 'Volver a la biblioteca' },
   'error.boot': { en: 'Quiz could not start. Reload the page; the browser console names what blocked it. Nothing was written.', es: 'Quiz no pudo iniciarse. Recarga la página; la consola del navegador indica qué lo bloqueó. No se escribió nada.' },
-  'header.subtitle': { en: 'Four small games for kana, beats and song lines', es: 'Cuatro juegos pequeños de kana, pulsos y versos' },
+  'header.subtitle': { en: 'Small games for kana, beats and song lines', es: 'Juegos pequeños de kana, pulsos y versos' },
   footer: { en: 'Runs entirely in your browser. Scores stay on this device.', es: 'Funciona por completo en tu navegador. Los resultados se quedan en este dispositivo.' },
 };
 
